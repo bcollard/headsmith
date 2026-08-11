@@ -20,7 +20,18 @@ let extensionId: string;
 test.beforeAll(async () => {
   context = await chromium.launchPersistentContext('', {
     channel: 'chromium',
-    args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`],
+    headless: false,
+    /* Extension e2e requires a headed browser: Playwright's headless shell
+       cannot load extensions at all, and real Chrome in new-headless mode does
+       not start the service worker. So the window is real -- but parked far
+       off-screen, because a test suite that seizes the display of whoever is
+       working on the machine is a suite people stop running. CI runs it under
+       xvfb, where none of this matters. HEADED=1 brings it back on screen. */
+    args: [
+      `--disable-extensions-except=${extensionPath}`,
+      `--load-extension=${extensionPath}`,
+      ...(process.env['HEADED'] ? [] : ['--window-position=-32000,-32000']),
+    ],
   });
   let [worker] = context.serviceWorkers();
   if (!worker) worker = await context.waitForEvent('serviceworker');
@@ -180,5 +191,59 @@ test('the editor makes no network request of any kind', async () => {
   await page.waitForLoadState('networkidle');
 
   expect(offOrigin).toEqual([]);
+  await page.close();
+});
+
+test('several domains can be typed with Enter between them', async () => {
+  /* The field was bound to the parsed list, so pressing Enter produced
+     "example.com\n", which parsed to ["example.com"], which rendered back as
+     "example.com" -- the newline was destroyed on the keystroke that created
+     it and a second line could never be started. Reported from real use. */
+  const page = await openEditor();
+  await resetConfig(page);
+  await page.reload();
+
+  await page.getByLabel('Header name').first().fill('X-Env');
+  await page.getByLabel('Header value').first().fill('staging');
+  await page.getByRole('tab', { name: 'scope' }).click();
+
+  const box = page.getByLabel('Domains', { exact: true });
+  await box.click();
+  await page.keyboard.type('api.example.com');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('staging.example.com');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('dev.example.com');
+
+  await expect(box).toHaveValue('api.example.com\nstaging.example.com\ndev.example.com');
+
+  await expect
+    .poll(async () => {
+      const rules = await liveRules();
+      return (rules.dynamic[0] as { condition?: { requestDomains?: string[] } })?.condition
+        ?.requestDomains;
+    }, { timeout: 5000 })
+    .toEqual(['api.example.com', 'staging.example.com', 'dev.example.com']);
+
+  await page.close();
+});
+
+test('a field is named by its label, not by what is typed into it', async () => {
+  /* Nesting a control inside <label> folds everything in the label into the
+     control's accessible name -- for a textarea, including its own value. The
+     Domains field announced itself as "Domains api.example.com", growing as
+     the user typed. */
+  const page = await openEditor();
+  await resetConfig(page);
+  await page.reload();
+  await page.getByRole('tab', { name: 'scope' }).click();
+
+  const box = page.getByLabel('Domains', { exact: true });
+  await box.click();
+  await page.keyboard.type('api.example.com');
+  await page.waitForTimeout(200);
+
+  // Still exactly one match after typing, and still named "Domains".
+  await expect(page.getByLabel('Domains', { exact: true })).toHaveCount(1);
   await page.close();
 });

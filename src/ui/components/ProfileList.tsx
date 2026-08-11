@@ -127,9 +127,11 @@ export function ProfileList({
 export function ProfileHeader({
   profile,
   onChange,
+  showColours = true,
 }: {
   profile: Profile;
   onChange: (patch: Partial<Profile>) => void;
+  showColours?: boolean;
 }) {
   return (
     <div className="hs-profile-header">
@@ -139,19 +141,68 @@ export function ProfileHeader({
         aria-label="Profile name"
         onChange={(e) => onChange({ name: e.target.value })}
       />
-      <div className="hs-colors" role="group" aria-label="Profile colour">
-        {PROFILE_COLORS.map((color) => (
-          <button
-            key={color}
-            type="button"
-            className={`hs-color${profile.color === color ? ' hs-color-on' : ''}`}
-            style={{ background: color }}
-            title={color}
-            aria-label={color}
-            onClick={() => onChange({ color })}
-          />
-        ))}
-      </div>
+      {showColours ? (
+        <div className="hs-colors" role="group" aria-label="Profile colour">
+          {PROFILE_COLORS.map((color) => (
+            <button
+              key={color}
+              type="button"
+              className={`hs-color${profile.color === color ? ' hs-color-on' : ''}`}
+              style={{ background: color }}
+              title={color}
+              aria-label={color}
+              onClick={() => onChange({ color })}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/* The popup's whole profile control: rename in place, and switch if there is
+ * more than one.
+ *
+ * Everything structural -- creating, duplicating, deleting, recolouring --
+ * lives in the full editor. In a 420px popup those are five more controls
+ * competing with the two things anyone opened it for, and each is a decision
+ * you make once and then live with, not something you reach for mid-debug.
+ * A single default profile you can rename is the whole model until you need
+ * more. */
+export function ProfileBar({
+  config,
+  onSelect,
+  onRename,
+}: {
+  config: Config;
+  onSelect: (id: string) => void;
+  onRename: (name: string) => void;
+}) {
+  const active = config.profiles.find((p) => p.id === config.activeProfileId) ?? config.profiles[0]!;
+
+  return (
+    <div className="hs-profile-bar">
+      <span className="hs-swatch" style={{ background: active.color }} aria-hidden="true" />
+      <input
+        className="hs-input hs-title-input"
+        value={active.name}
+        aria-label="Profile name"
+        onChange={(e) => onRename(e.target.value)}
+      />
+      {config.profiles.length > 1 ? (
+        <select
+          className="hs-input hs-select"
+          value={active.id}
+          aria-label="Switch profile"
+          onChange={(e) => onSelect(e.target.value)}
+        >
+          {config.profiles.map((profile) => (
+            <option key={profile.id} value={profile.id}>
+              {profile.name}
+            </option>
+          ))}
+        </select>
+      ) : null}
     </div>
   );
 }

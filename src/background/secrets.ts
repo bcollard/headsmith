@@ -273,10 +273,17 @@ export async function unlock(passphrase: string, settings: Settings): Promise<Un
   return { ok: true, unreadable };
 }
 
-/* Clears every trace of the unlocked state. Ciphertext and configuration are
-   untouched, so unlocking restores everything. */
+/* Drops the vault key and the auto-lock deadline. Ciphertext and configuration
+   are untouched, so unlocking restores everything.
+ *
+ * It deliberately does **not** clear the session value cache. Locking is a
+ * vault concept: in vault mode that cache is empty anyway, and in session mode
+ * it holds every credential the user has entered. Clearing it there destroyed
+ * them permanently -- unlocking restored the key but the values were already
+ * gone. It achieved nothing in the mode it was meant for and lost data in the
+ * mode it was not. */
 export async function lock(): Promise<void> {
-  await session.remove([SESSION_KEYS.values, SESSION_KEYS.key, SESSION_KEYS.lockAt]);
+  await session.remove([SESSION_KEYS.key, SESSION_KEYS.lockAt]);
   await alarms.clear(LOCK_ALARM);
 }
 

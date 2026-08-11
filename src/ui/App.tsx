@@ -12,8 +12,8 @@ import { useConfig } from './state/useConfig';
 import { useStatus } from './state/useStatus';
 import { useVault } from './state/useVault';
 import { HeaderTable } from './components/HeaderTable';
-import { MatchEditor } from './components/MatchEditor';
-import { ProfileHeader, ProfileList } from './components/ProfileList';
+import { CompactMatchEditor, MatchEditor } from './components/MatchEditor';
+import { ProfileBar, ProfileHeader, ProfileList } from './components/ProfileList';
 import { SettingsPanel } from './components/SettingsPanel';
 import { StatusBar } from './components/StatusBar';
 import { VaultPanel } from './components/VaultPanel';
@@ -78,6 +78,9 @@ export function App() {
   return (
     <div className={`hs-app${popup ? ' hs-popup' : ''}`}>
       <header className="hs-topbar">
+        {/* Local asset, same one the toolbar uses. Nothing here is fetched
+            from off-origin -- see scripts/guard-egress.mjs. */}
+        <img className="hs-logo" src="/icons/icon32.png" width="20" height="20" alt="" />
         <span className="hs-brand">Headsmith</span>
         <Toggle
           checked={!config.paused}
@@ -98,15 +101,29 @@ export function App() {
       <StatusBar status={status} pending={pending} paused={config.paused} />
 
       <div className="hs-body">
-        <ProfileList
-          config={config}
-          blockedIds={blockedIds}
-          onSelect={(id) => void updateNow((c) => ({ ...c, activeProfileId: id }))}
-          onChange={update}
-        />
+        {/* Creating, duplicating, deleting and recolouring profiles are
+            decisions made once, not things reached for mid-debug, so they stay
+            in the full editor. The popup gets one profile it can rename in
+            place, and a switcher only once a second profile exists. */}
+        {!popup ? (
+          <ProfileList
+            config={config}
+            blockedIds={blockedIds}
+            onSelect={(id) => void updateNow((c) => ({ ...c, activeProfileId: id }))}
+            onChange={update}
+          />
+        ) : null}
 
         <main className="hs-main">
-          <ProfileHeader profile={profile} onChange={setProfile} />
+          {popup ? (
+            <ProfileBar
+              config={config}
+              onSelect={(id) => void updateNow((c) => ({ ...c, activeProfileId: id }))}
+              onRename={(name) => setProfile({ name })}
+            />
+          ) : (
+            <ProfileHeader profile={profile} onChange={setProfile} />
+          )}
 
           {!popup ? (
             <nav className="hs-tabs" role="tablist">
@@ -144,9 +161,18 @@ export function App() {
               />
 
               {popup ? (
-                <p className="hs-hint hs-popup-note">
-                  Scoping, credentials and settings are in the full editor.
-                </p>
+                <>
+                  <h3>Where it applies</h3>
+                  <CompactMatchEditor
+                    match={profile.match}
+                    hasCredential={hasSensitiveContent(profile)}
+                    onChange={(match) => setProfile({ match })}
+                  />
+                  <p className="hs-hint hs-popup-note">
+                    Regexes, exclusions, request types, credentials and profile management are
+                    in the full editor.
+                  </p>
+                </>
               ) : null}
             </>
           ) : null}

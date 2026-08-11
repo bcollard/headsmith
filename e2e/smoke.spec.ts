@@ -22,7 +22,18 @@ let context: BrowserContext;
 test.beforeAll(async () => {
   context = await chromium.launchPersistentContext('', {
     channel: 'chromium',
-    args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`],
+    headless: false,
+    /* Extension e2e requires a headed browser: Playwright's headless shell
+       cannot load extensions at all, and real Chrome in new-headless mode does
+       not start the service worker. So the window is real -- but parked far
+       off-screen, because a test suite that seizes the display of whoever is
+       working on the machine is a suite people stop running. CI runs it under
+       xvfb, where none of this matters. HEADED=1 brings it back on screen. */
+    args: [
+      `--disable-extensions-except=${extensionPath}`,
+      `--load-extension=${extensionPath}`,
+      ...(process.env['HEADED'] ? [] : ['--window-position=-32000,-32000']),
+    ],
   });
 });
 

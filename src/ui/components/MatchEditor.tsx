@@ -13,7 +13,111 @@
 
 import { RESOURCE_TYPES, type MatchSet } from '../../core/schema';
 import { estimateProfileCost } from '../../core/budget';
-import { Callout, Field, ListInput } from './primitives';
+import { checkDomains, repairDomains } from '../../core/domains';
+import { Button, Callout, Field, ListInput } from './primitives';
+
+/* The popup's scope editor: where a rule applies, and nothing else.
+ *
+ * Domains and URL-contains cover almost every real case, and both are the
+ * things you change while debugging. Regexes, domain exclusions and resource
+ * types are set once and rarely revisited, so they stay in the full editor
+ * rather than tripling the height of a 420px popup. */
+export function CompactMatchEditor({
+  match,
+  hasCredential,
+  onChange,
+}: {
+  match: MatchSet;
+  hasCredential: boolean;
+  onChange: (next: MatchSet) => void;
+}) {
+  const setInclude = (patch: Partial<MatchSet['include']>) =>
+    onChange({ ...match, include: { ...match.include, ...patch } });
+
+  const scoped =
+    match.include.domains.length > 0 ||
+    match.include.urlContains.length > 0 ||
+    match.include.urlRegex.length > 0;
+
+  const extras =
+    match.include.urlRegex.length + match.exclude.domains.length + match.resourceTypes.length;
+
+  return (
+    <div className="hs-match hs-match-compact">
+      {!scoped ? (
+        <Callout tone={hasCredential ? 'danger' : 'info'}>
+          {hasCredential
+            ? 'This profile sends a credential but applies everywhere. Name a domain before it can be used.'
+            : 'Applies to every request. Add a domain to narrow it.'}
+        </Callout>
+      ) : null}
+
+      <Field label="Domains" hint="One per line. Subdomains are included automatically.">
+        <ListInput
+          value={match.include.domains}
+          rows={2}
+          placeholder={'api.example.com'}
+          onChange={(domains) => setInclude({ domains })}
+        />
+      </Field>
+
+      <DomainProblems
+        values={match.include.domains}
+        onRepair={(domains) => setInclude({ domains })}
+      />
+
+      <Field label="URL contains" hint="One per line. Matched anywhere in the URL.">
+        <ListInput
+          value={match.include.urlContains}
+          rows={2}
+          placeholder={'/api/v2'}
+          onChange={(urlContains) => setInclude({ urlContains })}
+        />
+      </Field>
+
+      {extras > 0 ? (
+        <p className="hs-hint">
+          This profile also uses {extras} scope rule{extras === 1 ? '' : 's'} only shown in the full
+          editor.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/* Chrome accepts several domain spellings that can then never match anything:
+ * `*.example.com`, `https://example.com`, `example.com:8080`, a bare `*`. A
+ * rule that is accepted and silently does nothing is the worst failure this
+ * extension can produce -- the profile looks configured, and there is nowhere
+ * to look. Each one has an obvious intended meaning, so the fix is offered
+ * rather than the mistake merely reported. */
+function DomainProblems({
+  values,
+  onRepair,
+}: {
+  values: string[];
+  onRepair: (next: string[]) => void;
+}) {
+  const problems = checkDomains(values);
+  if (problems.length === 0) return null;
+
+  const fixable = problems.some((p) => p.suggestion);
+
+  return (
+    <Callout tone="warn" title="These will never match">
+      <ul>
+        {problems.map((problem) => (
+          <li key={problem.value}>
+            <code>{problem.value}</code> — {problem.message}
+          </li>
+        ))}
+      </ul>
+      {fixable ? (
+        <Button onClick={() => onRepair(repairDomains(values))}>Fix these</Button>
+      ) : null}
+    </Callout>
+  );
+}
 
 export function MatchEditor({
   match,
@@ -45,7 +149,7 @@ export function MatchEditor({
 
       <Field
         label="Domains"
-        hint="api.example.com — matches the domain and its subdomains. The cheapest and most precise option."
+        hint="One per line. A domain covers its subdomains automatically, so api.example.com also matches staging.api.example.com — there is no wildcard syntax because none is needed. The cheapest and most precise way to scope a profile."
       >
         <ListInput
           value={match.include.domains}
@@ -53,6 +157,11 @@ export function MatchEditor({
           onChange={(domains) => setInclude({ domains })}
         />
       </Field>
+
+      <DomainProblems
+        values={match.include.domains}
+        onRepair={(domains) => setInclude({ domains })}
+      />
 
       <Field label="URL contains" hint="Matched as a substring of the whole URL.">
         <ListInput

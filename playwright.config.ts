@@ -27,11 +27,17 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
+        /* Headed, because there is no alternative: Playwright's headless
+           shell cannot load extensions, and real Chrome in new-headless mode
+           never starts the service worker. The window is parked far
+           off-screen instead, so a run does not seize the display of whoever
+           is using the machine. CI runs under xvfb. HEADED=1 to watch. */
         headless: false,
         launchOptions: {
           args: [
             `--disable-extensions-except=${extensionPath}`,
             `--load-extension=${extensionPath}`,
+            ...(process.env['HEADED'] ? [] : ['--window-position=-32000,-32000']),
           ],
         },
       },

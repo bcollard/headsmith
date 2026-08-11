@@ -404,6 +404,7 @@
   font-weight: 600;
   font-size: 12px;
   margin-bottom: 4px;
+  cursor: pointer;
 }
 
 .hs-field-error {
@@ -597,6 +598,34 @@
   margin-top: 0;
 }
 
-.hs-field-label-row {
+/* ---- logo and popup profile bar ---- */
+
+.hs-logo {
   display: block;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.hs-profile-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.hs-profile-bar .hs-title-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.hs-profile-bar .hs-select {
+  max-width: 40%;
+}
+
+.hs-match-compact .hs-field {
+  margin: 8px 0;
+}
+
+.hs-match-compact .hs-hint {
+  font-size: 11px;
 }
