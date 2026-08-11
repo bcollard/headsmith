@@ -46,6 +46,10 @@ check: 		 ## Everything CI runs, in the same order
 	npm run typecheck && npm run lint && npm run test:coverage && \
 	npm run icons -- --check && npm run build && npm run guard
 
+.PHONY: echo
+echo:            ## Run a local header echo server at http://localhost:8787
+	npm run echo
+
 .PHONY: load
 load:            ## Open chrome://extensions so dist/chrome can be loaded unpacked
 	@open -a "Google Chrome" "chrome://extensions" 2>/dev/null || \

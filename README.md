@@ -133,16 +133,50 @@ Two behaviours worth knowing:
   URL before its rules apply, so a production token cannot be attached to every
   request your browser makes. Overridable per profile, never globally.
 
-## Install
+## Try it locally
 
-Not yet published. To run it from source:
+Not yet published, so run it from source:
 
 ```bash
 npm ci
 npm run build
 ```
 
-Then load `dist/chrome` at `chrome://extensions` with developer mode on.
+Load it into Chrome:
+
+1. Open `chrome://extensions` (or `make load`)
+2. Turn on **Developer mode**, top right
+3. **Load unpacked** → select `dist/chrome`
+
+Then check it actually does something. In a second terminal:
+
+```bash
+npm run echo        # a local echo server on http://localhost:8787
+```
+
+Open <http://localhost:8787>. It lists the request headers the server really
+received, with anything your browser would not normally send called out
+separately. It is local on purpose — testing a privacy extension should not
+mean posting your headers to somebody else's server, and a credential you are
+experimenting with should stay on your machine.
+
+Now open the Headsmith popup, add a header — say `X-Environment: staging` — and
+under **Scope** put `localhost` in Domains. Reload the echo page and it will be
+there.
+
+A few things worth trying, because they are where the behaviour is opinionated:
+
+- **Name a header `Authorization`.** The value field is replaced by a credential
+  field the moment the name is recognised. What the profile stores is a
+  reference; the value goes to the secret store.
+- **Leave the scope empty on that profile.** It refuses to apply and says why —
+  a credential must name where it is allowed to go.
+- **Set a response header,** then use the button on the echo page to fetch it
+  back and see what your browser received.
+- **Press Alt+Shift+H.** Everything stops, and nothing is lost.
+
+After a rebuild, click the reload icon on the extension card in
+`chrome://extensions`.
 
 ## Development
 
