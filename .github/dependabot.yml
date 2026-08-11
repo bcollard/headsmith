@@ -13,6 +13,14 @@ updates:
       interval: weekly
       day: monday
       time: '06:00'
+    # Wait a week before proposing an update to a freshly published version.
+    # The npm attacks worth worrying about are published and yanked within
+    # hours, and an automated PR that lands one on the day it appears is a
+    # supply-chain hole dressed as diligence. A week costs nothing here:
+    # nothing in this tree is urgent enough to need a same-day bump, and a real
+    # advisory arrives through Dependabot alerts rather than version updates.
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     groups:
       # One PR for the routine noise; anything major still arrives on its own
@@ -49,6 +57,14 @@ updates:
       interval: weekly
       day: monday
       time: '06:00'
+    # Wait a week before proposing an update to a freshly published version.
+    # The npm attacks worth worrying about are published and yanked within
+    # hours, and an automated PR that lands one on the day it appears is a
+    # supply-chain hole dressed as diligence. A week costs nothing here:
+    # nothing in this tree is urgent enough to need a same-day bump, and a real
+    # advisory arrives through Dependabot alerts rather than version updates.
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     groups:
       actions:

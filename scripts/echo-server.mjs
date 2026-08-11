@@ -68,6 +68,13 @@ const server = createServer((req, res) => {
     'x-echo-response': 'original',
   });
 
+  /* nosemgrep: javascript.express.security.injection.raw-html-format
+     Every interpolation below is either a literal from this file or has gone
+     through `escape` above, which covers & < > " ' -- and the values being
+     escaped are request headers, which are exactly the attacker-controllable
+     input the rule is about. The rule cannot see through the helper, so this
+     is reviewed and suppressed rather than left to fail the build every run;
+     a scanner nobody can get to green is a scanner people switch off. */
   res.end(`<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Headsmith echo</title>
 <style>
