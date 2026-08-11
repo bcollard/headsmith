@@ -1,0 +1,117 @@
+name: Security
+
+# Off-the-shelf scanning. The honest expectation is that CodeQL and Semgrep
+# will mostly be quiet on a codebase this size and this shape -- the custom
+# invariant guards in ci.yml are doing the real work. These are here to catch
+# the classes of bug that generic analysis is genuinely good at, and to notice
+# a dependency going bad between releases.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly, so an advisory published against a pinned dependency surfaces
+    # without waiting for someone to open a pull request.
+    - cron: '17 6 * * 1'
+
+permissions: {}
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+
+      - uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        with:
+          category: /language:javascript-typescript
+
+  semgrep:
+    name: Semgrep
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Installed from PyPI at a pinned version rather than via an action, so
+      # there is one fewer third-party action in the supply chain and the
+      # version is visible in this file.
+      - name: Install Semgrep
+        run: pipx install semgrep==1.145.0
+
+      - name: Scan
+        run: semgrep scan --config p/javascript --config p/owasp-top-ten --error --skip-unknown-extensions .
+
+  dependencies:
+    name: Dependency vulnerabilities
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Blocks on High and Critical. Note that Headsmith ships no runtime
+      # dependency other than React and Zod -- almost everything in the tree is
+      # a devDependency that never reaches a user's browser. That is a reason
+      # to fix findings calmly, not a reason to ignore them: a compromised
+      # build-time dependency can write anything it likes into dist/.
+      - name: OSV scan
+        uses: google/osv-scanner-action/osv-scanner-action@8deb546fdb875b9996d27d4950be7312dac076a1 # v2.5.0
+        with:
+          scan-args: |-
+            --lockfile=package-lock.json
+            --fail-on-vuln
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Full history: a credential committed and then reverted is still a
+          # leaked credential.
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

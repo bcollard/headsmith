@@ -1,0 +1,178 @@
+name: CI
+
+# Correctness and invariant gates. Everything here blocks the merge -- there
+# are no warn-only steps, because a warning nobody has to clear is a warning
+# nobody reads. Both projects Headsmith learned from own substantial test
+# suites that nothing runs automatically; that is the failure mode this file
+# exists to avoid.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# No token permissions by default. Each job asks for exactly what it needs.
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Reproducibility: pin the toolchain, and never let a postinstall script
+  # reach the network for something the lockfile did not describe.
+  NPM_CONFIG_FUND: 'false'
+  NPM_CONFIG_AUDIT: 'false'
+
+jobs:
+  verify:
+    name: Typecheck, lint, test, build, guards
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # Egress-audit mode records every outbound connection the runner makes.
+      # Fitting for a project whose central claim is that it makes none: the
+      # audit log is the evidence for the build half of that claim.
+      - name: Harden runner
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests with coverage thresholds
+        run: npm run test:coverage
+
+      # The icons are generated from scripts/lib/logo.mjs rather than committed
+      # as hand-made binaries, so that the shipped artifact is entirely
+      # source-derived. This asserts the committed PNGs still match what the
+      # generator produces -- if they drift, the reproducible-build claim in
+      # the README quietly stops being true.
+      - name: Icons match their generator
+        run: npm run icons -- --check
+
+      - name: Build
+        run: npm run build
+
+      # These run against dist/, not src/. See SECURITY.md for why that
+      # distinction is the whole point.
+      - name: Invariant guards
+        run: npm run guard
+
+      - name: Upload built extension
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: extension-dist
+          path: dist/
+          retention-days: 7
+
+  permission-change-review:
+    name: Permission change needs review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Detect permission-surface changes
+        id: changed
+        uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
+        with:
+          filters: |
+            permissions:
+              - 'scripts/permissions-baseline.json'
+              - 'wxt.config.ts'
+            security_doc:
+              - 'SECURITY.md'
+
+      # Widening what the extension may do is the change most worth slowing
+      # down. The guard script already fails on drift between the baseline and
+      # the built manifest; this adds the human gate, which only the workflow
+      # can enforce because only it can see labels.
+      - name: Require label and SECURITY.md entry
+        if: steps.changed.outputs.permissions == 'true'
+        env:
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          SECURITY_TOUCHED: ${{ steps.changed.outputs.security_doc }}
+        run: |
+          echo "This PR changes the permission surface."
+          failed=0
+          case ",$LABELS," in
+            *,permissions-change,*) echo "  ok: permissions-change label present" ;;
+            *) echo "  MISSING: add the 'permissions-change' label"; failed=1 ;;
+          esac
+          if [ "$SECURITY_TOUCHED" = "true" ]; then
+            echo "  ok: SECURITY.md updated"
+          else
+            echo "  MISSING: add an entry to the SECURITY.md changelog"
+            failed=1
+          fi
+          exit $failed
+
+  e2e:
+    name: End-to-end against the real extension
+    runs-on: ubuntu-latest
+    needs: verify
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # Reuse the exact artifact the guards passed, rather than rebuilding --
+      # the e2e suite should exercise the bytes that were verified.
+      - name: Download built extension
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: extension-dist
+          path: dist/
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      # Chrome refuses to load an extension headless, so the suite runs under
+      # a virtual display.
+      - name: Run e2e
+        run: xvfb-run -a npx playwright test
+
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

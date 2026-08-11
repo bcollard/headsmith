@@ -1,0 +1,61 @@
+version: 2
+
+# Covers both ecosystems on purpose. FlexHeader's Dependabot watched npm only,
+# ran five times in 2024 and has been silent since -- so its pinned actions and
+# its dependency tree have both been drifting, unattended, on an <all_urls>
+# extension. Grouping keeps the pull request volume low enough that this one
+# does not get ignored the same way.
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+    open-pull-requests-limit: 5
+    groups:
+      # One PR for the routine noise; anything major still arrives on its own
+      # so it gets read.
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+      # Toolchain moves together or not at all -- a wxt bump without its vite
+      # peer is just a broken build in a separate pull request.
+      build-toolchain:
+        patterns:
+          - wxt
+          - vite
+          - '@vitejs/*'
+          - vitest
+          - '@vitest/*'
+          - typescript
+          - typescript-eslint
+          - eslint
+          - '@eslint/*'
+    labels:
+      - dependencies
+    commit-message:
+      prefix: 'deps'
+
+  # Actions are pinned to full commit SHAs, which means they cannot float to a
+  # backdoored tag -- and equally that they will never pick up a security fix
+  # on their own. Dependabot is what turns a SHA pin from "frozen" into
+  # "deliberately updated", so this entry is load-bearing rather than routine.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns:
+          - '*'
+    labels:
+      - dependencies
+      - ci
+    commit-message:
+      prefix: 'ci'

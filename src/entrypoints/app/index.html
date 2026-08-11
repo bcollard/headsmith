@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Headsmith</title>
+    <!--
+      There is deliberately no <link> to a font CDN here, and no preconnect.
+      FlexHeader ships a fonts.googleapis.com stylesheet in its published zip
+      while its store listing claims no data collection; that tag hands Google
+      an IP, a user agent and a timestamp every time the popup is opened.
+      Headsmith uses the system font stack and ships zero remote subresources.
+      scripts/guard-egress.mjs fails the build if that ever stops being true,
+      and it checks dist/ rather than src/ because that is where such a tag
+      actually becomes visible.
+    -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>

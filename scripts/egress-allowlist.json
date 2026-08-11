@@ -1,0 +1,39 @@
+{
+  "$comment": [
+    "Every entry here is a hole in Headsmith's no-egress promise, so every entry",
+    "carries a reason and is reviewed as a change to a security file. See SECURITY.md.",
+    "",
+    "`primitives` is empty and should stay empty: the bundle contains no fetch, XHR,",
+    "WebSocket, sendBeacon or EventSource at all. Vite's modulepreload polyfill was",
+    "the only one, and it is switched off in wxt.config.ts rather than excused here."
+  ],
+
+  "primitives": [],
+
+  "namespaceUris": {
+    "$comment": [
+      "XML namespace URIs are identifiers, not locations. The browser passes them to",
+      "createElementNS to disambiguate element names and never dereferences them --",
+      "http://www.w3.org/2000/svg has never been fetched by any browser rendering an",
+      "<svg>. They are matched as exact prefixes rather than by host on purpose: an",
+      "allowlist entry for the host www.w3.org would also silently permit a genuine",
+      "<script src=\"https://www.w3.org/...\">, which is the thing this guard exists",
+      "to catch."
+    ],
+    "prefixes": [
+      "http://www.w3.org/2000/svg",
+      "http://www.w3.org/1999/xhtml",
+      "http://www.w3.org/1999/xlink",
+      "http://www.w3.org/1998/Math/MathML",
+      "http://www.w3.org/XML/1998/namespace",
+      "http://www.w3.org/2000/xmlns/"
+    ]
+  },
+
+  "origins": [
+    {
+      "host": "react.dev",
+      "reason": "React's production build embeds the prefix \"https://react.dev/errors/\" so a minified invariant violation can be looked up by code. It is concatenated into a console message and never passed to a network API -- and with no network primitive left in the bundle there is nothing that could dereference it. Listed rather than patched out because removing it would mean forking react-dom for a string in an error path. Verified with: grep -o 'https://react.dev[^\"]*' on the built chunk."
+    }
+  ]
+}

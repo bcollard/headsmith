@@ -1,0 +1,52 @@
+/* Headsmith base styles.
+ *
+ * No @font-face, no @import, no url() pointing anywhere but this extension.
+ * The system font stack below is the whole typography story: it costs nothing,
+ * loads instantly, matches the host OS, and -- the point -- makes it
+ * impossible for opening the popup to tell a third party anything.
+ */
+
+:root {
+  --hs-font:
+    system-ui, -apple-system, 'Segoe UI', Roboto, Ubuntu, Cantarell,
+    'Noto Sans', 'Helvetica Neue', Arial, sans-serif;
+  --hs-mono:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas,
+    'Liberation Mono', monospace;
+
+  --hs-forge: #b4470e;
+  --hs-forge-dim: #8a360b;
+
+  --hs-bg: #fff8f3;
+  --hs-surface: #ffffff;
+  --hs-border: #e4d9d1;
+  --hs-text: #14161a;
+  --hs-text-dim: #5c5651;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hs-bg: #17140f;
+    --hs-surface: #211d18;
+    --hs-border: #3a332b;
+    --hs-text: #f2ede8;
+    --hs-text-dim: #a89f96;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--hs-font);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--hs-text);
+  background: var(--hs-bg);
+}
+
+.hs-shell {
+  padding: 16px;
+}

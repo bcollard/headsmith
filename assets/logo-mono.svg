@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512" role="img" aria-label="Headsmith">
+  <title>Headsmith</title>
+  <rect width="100" height="100" rx="20.0" ry="20.0" fill="none"/>
+  <g transform="translate(16 16) scale(0.680000)">
+    <path d="M0 25.61 L31.707 15.854 L100 15.854 L100 42.683 L85.366 42.683 L73.171 52.439 L73.171 59.756 L97.561 69.512 L100 84.146 L7.317 84.146 L9.756 69.512 L34.146 59.756 L34.146 52.439 L31.707 42.683 L0 34.146 Z" fill="#14161A"/>
+  </g>
+</svg>

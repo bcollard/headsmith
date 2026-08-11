@@ -1,0 +1,54 @@
+{
+  "name": "headsmith",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Chrome extension for adding, rewriting and removing HTTP headers, organised into profiles and scoped by URL filters.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "postinstall": "wxt prepare",
+    "dev": "wxt",
+    "build": "wxt build",
+    "zip": "wxt zip",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:update-fixtures": "UPDATE_FIXTURES=true vitest run",
+    "pretest:e2e": "npm run build",
+    "test:e2e": "playwright test",
+    "icons": "node scripts/generate-icons.mjs",
+    "guard": "npm run guard:core && npm run guard:egress && npm run guard:manifest && npm run guard:refs",
+    "guard:core": "node scripts/guard-core-purity.mjs",
+    "guard:egress": "node scripts/guard-egress.mjs",
+    "guard:manifest": "node scripts/guard-manifest.mjs",
+    "guard:refs": "node scripts/guard-manifest-refs.mjs"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "@playwright/test": "^1.56.0",
+    "@types/chrome": "^0.1.24",
+    "@types/node": "^24.9.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.0.4",
+    "@vitest/coverage-v8": "^3.2.4",
+    "eslint": "^9.39.0",
+    "eslint-plugin-react-hooks": "^7.0.0",
+    "globals": "^16.5.0",
+    "jsdom": "^27.0.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.0",
+    "vitest": "^3.2.4",
+    "wxt": "^0.21.3"
+  }
+}

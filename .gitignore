@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.wxt/
+.output/
+build/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+.DS_Store
+
+# Never commit a self-distribution signing key.
+*.pem
+*.crx
