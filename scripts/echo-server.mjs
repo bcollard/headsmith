@@ -61,6 +61,18 @@ const server = createServer((req, res) => {
   const row = ([name, value]) =>
     `<tr><td><code>${escape(name)}</code></td><td><code>${escape(value)}</code></td></tr>`;
 
+  /* Built here rather than inline in the template so the suppression can sit
+     on the line the decision was made about. Every cell goes through `escape`,
+     which covers & < > " ' -- and the values are request headers, exactly the
+     attacker-controllable input the rule is about, so the rule is asking a
+     fair question. It simply cannot see through the helper.
+     nosemgrep: javascript.express.security.injection.raw-html-format */
+  const injectedTable = injected.length
+    ? `<table>${injected.map(row).join('')}</table>`
+    : '<p class="none">None — nothing has been injected on this request.</p>';
+  // nosemgrep: javascript.express.security.injection.raw-html-format
+  const restTable = `<table>${rest.map(row).join('')}</table>`;
+
   res.writeHead(200, {
     'content-type': 'text/html; charset=utf-8',
     'cache-control': 'no-store',
@@ -68,13 +80,6 @@ const server = createServer((req, res) => {
     'x-echo-response': 'original',
   });
 
-  /* nosemgrep: javascript.express.security.injection.raw-html-format
-     Every interpolation below is either a literal from this file or has gone
-     through `escape` above, which covers & < > " ' -- and the values being
-     escaped are request headers, which are exactly the attacker-controllable
-     input the rule is about. The rule cannot see through the helper, so this
-     is reviewed and suppressed rather than left to fail the build every run;
-     a scanner nobody can get to green is a scanner people switch off. */
   res.end(`<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Headsmith echo</title>
 <style>
@@ -97,10 +102,10 @@ Remember Headsmith only applies a profile where its scope says — add
 <code>localhost</code> as a domain, or leave the scope empty.</p>
 
 <h2>Headers your browser does not normally send</h2>
-${injected.length ? `<table>${injected.map(row).join('')}</table>` : '<p class="none">None — nothing has been injected on this request.</p>'}
+${injectedTable}
 
 <h2>Everything else</h2>
-<table>${rest.map(row).join('')}</table>
+${restTable}
 
 <h2>Response headers</h2>
 <p class="hint">This page is served with <code>x-echo-response: original</code>.
