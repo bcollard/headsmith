@@ -72,8 +72,8 @@ const server = createServer((req, res) => {
      `X-Probe: <script>alert(1)</script>` renders as escaped text, never as
      markup. */
   const none = '<p class="none">None — nothing has been injected on this request.</p>';
-  const injectedTable = injected.length ? `<table>${injected.map(row).join('')}</table>` : none; // nosemgrep: javascript.express.security.injection.raw-html-format
-  const restTable = `<table>${rest.map(row).join('')}</table>`; // nosemgrep: javascript.express.security.injection.raw-html-format
+  const injectedTable = injected.length ? `<table>${injected.map(row).join('')}</table>` : none; // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format
+  const restTable = `<table>${rest.map(row).join('')}</table>`; // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format
 
   res.writeHead(200, {
     'content-type': 'text/html; charset=utf-8',
@@ -117,11 +117,23 @@ were applied — try setting or removing that header in a profile.</p>
 <div id="out"></div>
 
 <script>
+// Built with DOM nodes and textContent rather than innerHTML. These values are
+// response headers, and the whole point of this page is that an extension is
+// setting them -- so a header whose value is markup is an expected input here,
+// not a hypothetical one.
 document.getElementById('check').addEventListener('click', async () => {
   const res = await fetch(location.pathname, { cache: 'no-store' });
-  const rows = [...res.headers.entries()].sort(([a],[b]) => a.localeCompare(b))
-    .map(([k,v]) => '<tr><td><code>' + k + '</code></td><td><code>' + v + '</code></td></tr>').join('');
-  document.getElementById('out').innerHTML = '<table>' + rows + '</table>';
+  const table = document.createElement('table');
+  for (const [k, v] of [...res.headers.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    const tr = table.insertRow();
+    for (const text of [k, v]) {
+      const code = document.createElement('code');
+      code.textContent = text;
+      tr.insertCell().append(code);
+    }
+  }
+  const out = document.getElementById('out');
+  out.replaceChildren(table);
 });
 </script>
 </body></html>`);

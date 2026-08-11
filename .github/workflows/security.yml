@@ -67,7 +67,13 @@ jobs:
         run: pipx install semgrep==1.145.0
 
       - name: Scan
-        run: semgrep scan --config p/javascript --config p/owasp-top-ten --error --skip-unknown-extensions .
+        # --enable-nosem is explicit rather than assumed: `semgrep ci` honours
+        # inline suppressions by default but `semgrep scan` has not always, and
+        # a suppression that silently does nothing is worse than none.
+        run: |
+          semgrep scan \
+            --config p/javascript --config p/owasp-top-ten \
+            --enable-nosem --error --skip-unknown-extensions .
 
   dependencies:
     name: Dependency vulnerabilities
