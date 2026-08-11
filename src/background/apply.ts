@@ -1,5 +1,13 @@
 /* Handing compiled rules to the browser.
  *
+ * Derived from OpenModHeader's chromium/background.js.
+ * Copyright (c) 2026 Shiva M. MIT licensed.
+ * https://github.com/Multivalence/OpenModHeader
+ *
+ * The per-rule retry after a batch rejection, the in-flight/queued
+ * serialisation, the stripped profile annotation and the header-names-only
+ * error strings are upstream's. See NOTICE.md.
+ *
  * The compiler decides what the rules are; this decides how they get there.
  * Three things it has to get right:
  *

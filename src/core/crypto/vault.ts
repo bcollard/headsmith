@@ -1,5 +1,13 @@
 /* The passphrase-encrypted credential vault.
  *
+ * Derived from OpenModHeader's chromium/vault.js.
+ * Copyright (c) 2026 Shiva M. MIT licensed.
+ * https://github.com/Multivalence/OpenModHeader
+ *
+ * This is a close port: the function set, the KDF and cipher parameters, the
+ * check-sentinel design and the null-on-authentication-failure contract are
+ * all from upstream. Changes are noted in NOTICE.md.
+ *
  * AES-GCM secrets under a key derived from the user's passphrase with
  * PBKDF2-SHA256. Browser-native Web Crypto throughout; no dependencies, which
  * is why the KDF is PBKDF2 rather than Argon2id. That trade is recorded in

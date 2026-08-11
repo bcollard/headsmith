@@ -158,6 +158,21 @@ Headsmith closes that gap:
 The commands to check this yourself are in the README. This is the one part of
 the security story that does not require trusting us at all.
 
+## Provenance of the credential-security code
+
+Worth stating plainly on a page that asks you to trust this code: the
+credential-security model here is not original. `vault.ts`, `secrets.ts`,
+`policy.ts`, `sensitivity.ts` and `plan.ts` are ports of OpenModHeader's
+equivalents, with modifications. That was deliberate — the design was reviewed,
+found sound, and reimplemented in TypeScript with tests rather than reinvented.
+
+This matters to you in two directions. In its favour, the design has an
+existing implementation and users. Against it, a flaw in the original is very
+likely a flaw here too, so an advisory against OpenModHeader's credential
+handling should be read as applying to Headsmith until checked.
+
+What differs, and why, is itemised in [NOTICE.md](NOTICE.md).
+
 ## Reporting a vulnerability
 
 Open a private security advisory through GitHub's "Report a vulnerability"

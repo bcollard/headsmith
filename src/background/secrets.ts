@@ -1,5 +1,13 @@
 /* Credential storage, in the two modes Headsmith offers.
  *
+ * Derived from OpenModHeader's chromium/secretstore.js.
+ * Copyright (c) 2026 Shiva M. MIT licensed.
+ * https://github.com/Multivalence/OpenModHeader
+ *
+ * Close port. The storage-area split, the public surface and the auto-lock
+ * design are upstream's; the third storage mode is deliberately absent and
+ * unlock throttling is new. See NOTICE.md.
+ *
  *   session   values live in storage.session and nothing touches disk. The
  *             cost is retyping after a browser restart. This is the default.
  *   vault     values are AES-GCM encrypted in storage.local under a key

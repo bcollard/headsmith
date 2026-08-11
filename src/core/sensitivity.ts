@@ -1,5 +1,12 @@
 /* Which header values are credentials.
  *
+ * Derived from OpenModHeader's chromium/security.js.
+ * Copyright (c) 2026 Shiva M. MIT licensed.
+ * https://github.com/Multivalence/OpenModHeader
+ *
+ * The name list, the pattern list and the add-only sensitivity rule are
+ * upstream's. See NOTICE.md.
+ *
  * Pure name matching, no storage and no crypto, so it can be called from
  * anywhere -- the editor uses it to decide whether to offer the secret field,
  * the policy layer uses it to decide whether a profile needs a host

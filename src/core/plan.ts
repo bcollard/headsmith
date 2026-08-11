@@ -1,6 +1,12 @@
 /* Turns a profile into the header operations it implies, resolving credentials
  * on the way.
  *
+ * Derived from OpenModHeader's chromium/common.js (planProfile).
+ * Copyright (c) 2026 Shiva M. MIT licensed.
+ * https://github.com/Multivalence/OpenModHeader
+ *
+ * The fail-closed credential-resolution structure is upstream's. See NOTICE.md.
+ *
  * Separate from the compiler because the two answer different questions.
  * The planner answers "what should happen to which headers", which is where
  * credential resolution and fail-closed behaviour live. The compiler answers

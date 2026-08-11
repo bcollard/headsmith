@@ -1,6 +1,13 @@
 /* The single decision point for whether a profile's credential-bearing rules
  * may be applied.
  *
+ * Derived from OpenModHeader's chromium/security.js.
+ * Copyright (c) 2026 Shiva M. MIT licensed.
+ * https://github.com/Multivalence/OpenModHeader
+ *
+ * The activation-gate concept, the verdict shape, the wildcard-rejection
+ * pattern and the loopback exemption list are upstream's. See NOTICE.md.
+ *
  * Everything here is decidable from a profile plus settings plus the set of
  * secret ids that actually resolved. No storage, no crypto, no clock. That is
  * what makes "would this profile release a credential?" a question a test can

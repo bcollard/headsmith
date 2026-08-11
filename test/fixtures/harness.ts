@@ -1,5 +1,12 @@
 /* Snapshot harness for compiled declarativeNetRequest rules.
  *
+ * Derived from FlexHeader's src/background/__fixtures__/fixtureHelpers.ts.
+ * Copyright (c) 2025 harrisondeo. MIT licensed.
+ * https://github.com/harrisondeo/FlexHeader
+ *
+ * The snapshot-and-regenerate pattern, including the UPDATE_FIXTURES switch,
+ * is upstream's. See NOTICE.md.
+ *
  * The single best idea taken from FlexHeader. The question that matters when
  * touching a rule compiler is "did this change what the browser gets?", and it
  * is not answerable by reading a diff of the compiler -- a one-line change to
