@@ -1,0 +1,100 @@
+{
+  "dynamic": [
+    {
+      "id": 1,
+      "priority": 1,
+      "action": {
+        "type": "modifyHeaders",
+        "requestHeaders": [
+          {
+            "header": "x-everywhere",
+            "operation": "set",
+            "value": "1"
+          }
+        ]
+      },
+      "condition": {
+        "resourceTypes": [
+          "main_frame",
+          "sub_frame",
+          "stylesheet",
+          "script",
+          "image",
+          "font",
+          "object",
+          "xmlhttprequest",
+          "ping",
+          "csp_report",
+          "media",
+          "websocket",
+          "other"
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "priority": 100,
+      "action": {
+        "type": "allow"
+      },
+      "condition": {
+        "urlFilter": "/healthz",
+        "resourceTypes": [
+          "main_frame",
+          "sub_frame",
+          "stylesheet",
+          "script",
+          "image",
+          "font",
+          "object",
+          "xmlhttprequest",
+          "ping",
+          "csp_report",
+          "media",
+          "websocket",
+          "other"
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "priority": 100,
+      "action": {
+        "type": "allow"
+      },
+      "condition": {
+        "regexFilter": "\\.(png|jpe?g|gif)$",
+        "resourceTypes": [
+          "main_frame",
+          "sub_frame",
+          "stylesheet",
+          "script",
+          "image",
+          "font",
+          "object",
+          "xmlhttprequest",
+          "ping",
+          "csp_report",
+          "media",
+          "websocket",
+          "other"
+        ]
+      }
+    }
+  ],
+  "session": [],
+  "blocked": [],
+  "budget": {
+    "dynamic": {
+      "total": 3,
+      "unsafe": 1,
+      "regex": 1
+    },
+    "session": {
+      "total": 0,
+      "unsafe": 0,
+      "regex": 0
+    },
+    "overBudget": false
+  }
+}

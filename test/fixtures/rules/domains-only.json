@@ -1,0 +1,62 @@
+{
+  "dynamic": [
+    {
+      "id": 1,
+      "priority": 1,
+      "action": {
+        "type": "modifyHeaders",
+        "requestHeaders": [
+          {
+            "header": "x-env",
+            "operation": "set",
+            "value": "staging"
+          },
+          {
+            "header": "x-trace",
+            "operation": "set",
+            "value": "on"
+          }
+        ]
+      },
+      "condition": {
+        "resourceTypes": [
+          "main_frame",
+          "sub_frame",
+          "stylesheet",
+          "script",
+          "image",
+          "font",
+          "object",
+          "xmlhttprequest",
+          "ping",
+          "csp_report",
+          "media",
+          "websocket",
+          "other"
+        ],
+        "requestDomains": [
+          "api.example.com",
+          "api2.example.com"
+        ],
+        "excludedRequestDomains": [
+          "cdn.example.com"
+        ]
+      }
+    }
+  ],
+  "session": [],
+  "blocked": [],
+  "budget": {
+    "dynamic": {
+      "total": 1,
+      "unsafe": 1,
+      "regex": 0
+    },
+    "session": {
+      "total": 0,
+      "unsafe": 0,
+      "regex": 0
+    },
+    "overBudget": false
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "dynamic": [
+    {
+      "id": 1,
+      "priority": 1,
+      "action": {
+        "type": "modifyHeaders",
+        "requestHeaders": [
+          {
+            "header": "x-api-version",
+            "operation": "set",
+            "value": "2024-01"
+          }
+        ],
+        "responseHeaders": [
+          {
+            "header": "access-control-allow-origin",
+            "operation": "set",
+            "value": "*"
+          }
+        ]
+      },
+      "condition": {
+        "resourceTypes": [
+          "xmlhttprequest",
+          "main_frame"
+        ],
+        "requestDomains": [
+          "example.com"
+        ],
+        "urlFilter": "/api/v1"
+      }
+    },
+    {
+      "id": 2,
+      "priority": 1,
+      "action": {
+        "type": "modifyHeaders",
+        "requestHeaders": [
+          {
+            "header": "x-api-version",
+            "operation": "set",
+            "value": "2024-01"
+          }
+        ],
+        "responseHeaders": [
+          {
+            "header": "access-control-allow-origin",
+            "operation": "set",
+            "value": "*"
+          }
+        ]
+      },
+      "condition": {
+        "resourceTypes": [
+          "xmlhttprequest",
+          "main_frame"
+        ],
+        "requestDomains": [
+          "example.com"
+        ],
+        "regexFilter": "^https://example\\.com/graphql"
+      }
+    }
+  ],
+  "session": [],
+  "blocked": [],
+  "budget": {
+    "dynamic": {
+      "total": 2,
+      "unsafe": 2,
+      "regex": 1
+    },
+    "session": {
+      "total": 0,
+      "unsafe": 0,
+      "regex": 0
+    },
+    "overBudget": false
+  }
+}

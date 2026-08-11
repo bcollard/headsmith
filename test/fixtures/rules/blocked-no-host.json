@@ -1,0 +1,57 @@
+{
+  "dynamic": [
+    {
+      "id": 1,
+      "priority": 1,
+      "action": {
+        "type": "modifyHeaders",
+        "requestHeaders": [
+          {
+            "header": "x-safe",
+            "operation": "set",
+            "value": "yes"
+          }
+        ]
+      },
+      "condition": {
+        "resourceTypes": [
+          "main_frame",
+          "sub_frame",
+          "stylesheet",
+          "script",
+          "image",
+          "font",
+          "object",
+          "xmlhttprequest",
+          "ping",
+          "csp_report",
+          "media",
+          "websocket",
+          "other"
+        ]
+      }
+    }
+  ],
+  "session": [],
+  "blocked": [
+    {
+      "profileName": "Blocked",
+      "reasons": [
+        "no-host-restriction"
+      ]
+    }
+  ],
+  "budget": {
+    "dynamic": {
+      "total": 1,
+      "unsafe": 1,
+      "regex": 0
+    },
+    "session": {
+      "total": 0,
+      "unsafe": 0,
+      "regex": 0
+    },
+    "overBudget": false
+  }
+}
