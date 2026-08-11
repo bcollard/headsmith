@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { planProfile, planIsEmpty, countActiveOps } from './plan';
-import { isSensitiveHeaderName, carriesCredential, describeProblem } from './sensitivity';
+import {
+  isSensitiveHeaderName,
+  carriesCredential,
+  describeProblem,
+  explainSensitivity,
+  sensitivityOf,
+} from './sensitivity';
 import { blankHeaderOp, blankProfile, type Profile } from './schema';
 
 function withHeaders(
@@ -55,6 +61,58 @@ describe('sensitive header detection', () => {
 
   it('does not treat removing a credential header as carrying one', () => {
     expect(carriesCredential(blankHeaderOp({ name: 'Authorization', operation: 'remove' }))).toBe(false);
+  });
+});
+
+describe('explaining why a header was flagged', () => {
+  /* A lock icon that appears without explanation reads as a bug, and the first
+     thing anyone does with an unexplained restriction is try to turn it off.
+     Detection therefore carries a reason the editor can show. */
+  it('names the convention that matched', () => {
+    expect(explainSensitivity(blankHeaderOp({ name: 'Authorization' }))).toMatch(
+      /HTTP authentication/i,
+    );
+    expect(explainSensitivity(blankHeaderOp({ name: 'X-Acme-Api-Key' }))).toMatch(/API key/i);
+    expect(explainSensitivity(blankHeaderOp({ name: 'X-Session-Token' }))).toMatch(/token/i);
+    expect(explainSensitivity(blankHeaderOp({ name: 'X-Client-Secret' }))).toMatch(
+      /secret material/i,
+    );
+    expect(explainSensitivity(blankHeaderOp({ name: 'Cookie' }))).toMatch(/cookie/i);
+  });
+
+  it('distinguishes a user-marked header from a detected one', () => {
+    expect(explainSensitivity(blankHeaderOp({ name: 'X-Internal', sensitive: true }))).toMatch(
+      /you marked it/i,
+    );
+  });
+
+  it('says nothing about an ordinary header', () => {
+    expect(explainSensitivity(blankHeaderOp({ name: 'Accept' }))).toBeNull();
+  });
+
+  it('reports the detected reason even when the flag is also set', () => {
+    // The name is the stronger explanation: it says why it would have been
+    // treated as a credential regardless of the flag.
+    expect(
+      explainSensitivity(blankHeaderOp({ name: 'Authorization', sensitive: true })),
+    ).toMatch(/HTTP authentication/i);
+  });
+});
+
+describe('sensitivityOf', () => {
+  it('reports the reason as a stable code, not only prose', () => {
+    expect(sensitivityOf('Authorization')?.reason).toBe('http-authentication');
+    expect(sensitivityOf('X-Api-Key')?.reason).toBe('api-key');
+    expect(sensitivityOf('X-Refresh-Token')?.reason).toBe('token');
+    expect(sensitivityOf('X-Signing-Secret')?.reason).toBe('secret-material');
+    expect(sensitivityOf('Set-Cookie')?.reason).toBe('cookie');
+    expect(sensitivityOf('Accept')).toBeNull();
+  });
+
+  it('prefers the specific standard header over the shape rule', () => {
+    // `Proxy-Authorization` is HTTP authentication, not a thing that happens
+    // to end in a recognised word.
+    expect(sensitivityOf('Proxy-Authorization')?.reason).toBe('http-authentication');
   });
 });
 

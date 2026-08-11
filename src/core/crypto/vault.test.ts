@@ -2,35 +2,37 @@ import { describe, it, expect } from 'vitest';
 import {
   createVault,
   unlockVault,
-  decryptOne,
-  decryptAll,
-  encryptSecret,
-  decryptSecret,
-  changePassphrase,
-  validateVault,
-  validateRecord,
-  putRecord,
-  removeRecord,
+  readSecret,
+  readSecretWithPassphrase,
+  readAll,
+  writeSecret,
+  forgetSecret,
+  rekeyVault,
+  assertVaultFile,
+  seal,
+  unseal,
+  deriveKey,
   exportKey,
   importKey,
   toB64,
   fromB64,
   KDF,
   CIPHER,
+  type VaultFile,
 } from './vault';
 
-/* PBKDF2 at 600,000 iterations costs roughly half a second per derivation,
-   which is the point of it. Tests that need many derivations use a vault built
-   once and reused; the ones that must derive get a generous timeout. */
+/* PBKDF2 at 600,000 iterations costs roughly half a second, which is the
+   point of it. Tests that need a key derive one and reuse it. */
 const SLOW = 30_000;
+const PASS = 'a sufficiently long vault passphrase';
 
-describe('base64 helpers', () => {
+describe('base64', () => {
   it('round-trips arbitrary bytes', () => {
     const bytes = new Uint8Array([0, 1, 127, 128, 255, 42]);
     expect(fromB64(toB64(bytes))).toEqual(bytes);
   });
 
-  it('rejects anything that is not well-formed base64', () => {
+  it('rejects anything not well-formed', () => {
     for (const bad of ['', 'not base64!', 'abc', '****', null, undefined, 42, {}]) {
       expect(() => fromB64(bad)).toThrow();
     }
@@ -40,112 +42,138 @@ describe('base64 helpers', () => {
     expect(() => fromB64(toB64(new Uint8Array(8)), { expectedBytes: 16 })).toThrow(/expected 16/);
   });
 
-  it('names what failed without echoing the value', () => {
-    // Error strings surface in the UI, so they must not leak material.
+  it('names the field without echoing the value', () => {
+    // These strings reach the UI, so they must not carry key material.
     expect(() => fromB64('!!!!', { label: 'session key' })).toThrow(/session key/);
   });
 });
 
-describe('encryptSecret / decryptSecret', () => {
-  it('round-trips a value', { timeout: SLOW }, async () => {
-    const { key } = await createVault('correct horse battery staple');
-    const record = await encryptSecret(key, 'Bearer abc123');
-    expect(await decryptSecret(key, record)).toBe('Bearer abc123');
+describe('seal and unseal', () => {
+  it('round-trips under a matching AAD', { timeout: SLOW }, async () => {
+    const { key } = await createVault(PASS);
+    const sealed = await seal(key, 'aad-a', 'Bearer abc123');
+    expect(await unseal(key, 'aad-a', sealed)).toBe('Bearer abc123');
+  });
+
+  it('refuses a different AAD', { timeout: SLOW }, async () => {
+    const { key } = await createVault(PASS);
+    const sealed = await seal(key, 'aad-a', 'value');
+    expect(await unseal(key, 'aad-b', sealed)).toBeNull();
   });
 
   it('produces different ciphertext for the same plaintext', { timeout: SLOW }, async () => {
-    // A fresh IV per encryption. Reuse under one key breaks AES-GCM badly.
-    const { key } = await createVault('pass');
-    const a = await encryptSecret(key, 'same value');
-    const b = await encryptSecret(key, 'same value');
+    // A fresh IV per call. Reuse under one key breaks GCM catastrophically.
+    const { key } = await createVault(PASS);
+    const a = await seal(key, 'aad', 'same value');
+    const b = await seal(key, 'aad', 'same value');
     expect(a.iv).not.toBe(b.iv);
-    expect(a.ciphertext).not.toBe(b.ciphertext);
+    expect(a.ct).not.toBe(b.ct);
   });
 
   it('never stores the plaintext in the record', { timeout: SLOW }, async () => {
-    const { key } = await createVault('pass');
-    const record = await encryptSecret(key, 'SECRET-MARKER-VALUE');
-    expect(JSON.stringify(record)).not.toContain('SECRET-MARKER-VALUE');
+    const { key } = await createVault(PASS);
+    const sealed = await seal(key, 'aad', 'SECRET-MARKER-VALUE');
+    expect(JSON.stringify(sealed)).not.toContain('SECRET-MARKER-VALUE');
   });
 
   it('returns null rather than throwing on a wrong key', { timeout: SLOW }, async () => {
-    const a = await createVault('pass-a');
-    const b = await createVault('pass-b');
-    const record = await encryptSecret(a.key, 'value');
-    expect(await decryptSecret(b.key, record)).toBeNull();
+    const a = await createVault(PASS);
+    const b = await createVault('a different passphrase entirely');
+    const sealed = await seal(a.key, 'aad', 'value');
+    expect(await unseal(b.key, 'aad', sealed)).toBeNull();
   });
 
   it('returns null on a tampered ciphertext', { timeout: SLOW }, async () => {
-    // AES-GCM authenticates; a flipped bit must fail rather than decrypt to
-    // garbage that then gets sent as a header value.
-    const { key } = await createVault('pass');
-    const record = await encryptSecret(key, 'value');
-    const bytes = fromB64(record.ciphertext);
+    // GCM authenticates: a flipped bit must fail, not decrypt to garbage that
+    // then gets sent as a header value.
+    const { key } = await createVault(PASS);
+    const sealed = await seal(key, 'aad', 'value');
+    const bytes = fromB64(sealed.ct);
     bytes[0] = (bytes[0] ?? 0) ^ 0xff;
-    expect(await decryptSecret(key, { ...record, ciphertext: toB64(bytes) })).toBeNull();
+    expect(await unseal(key, 'aad', { ...sealed, ct: toB64(bytes) })).toBeNull();
   });
 
   it('returns null on a malformed record instead of crashing', { timeout: SLOW }, async () => {
-    const { key } = await createVault('pass');
-    for (const bad of [null, {}, { version: 99 }, { version: 1, algorithm: 'DES' }]) {
-      expect(await decryptSecret(key, bad)).toBeNull();
+    const { key } = await createVault(PASS);
+    for (const bad of [null, {}, { iv: 1, ct: 2 }, { iv: '!!', ct: '!!' }, 'nope']) {
+      expect(await unseal(key, 'aad', bad)).toBeNull();
     }
+  });
+
+  it('returns null on a ciphertext too short to carry a tag', { timeout: SLOW }, async () => {
+    const { key } = await createVault(PASS);
+    expect(
+      await unseal(key, 'aad', { iv: toB64(new Uint8Array(CIPHER.ivBytes)), ct: toB64(new Uint8Array(4)) }),
+    ).toBeNull();
   });
 });
 
-describe('validateRecord', () => {
-  it('rejects a ciphertext too short to carry an auth tag', () => {
-    expect(() =>
-      validateRecord({
-        version: 1,
-        algorithm: CIPHER.name,
-        kdf: KDF.name,
-        iv: toB64(new Uint8Array(CIPHER.ivBytes)),
-        ciphertext: toB64(new Uint8Array(4)),
-      }),
-    ).toThrow(/too short/);
+describe('records are bound to their name', () => {
+  /* The reason AAD is used at all. A vault is a JSON file its owner can edit;
+     without binding, swapping two ciphertexts produces a file that decrypts
+     perfectly and sends the wrong credential to the wrong host. */
+  it('refuses a record moved to a different secret id', { timeout: SLOW }, async () => {
+    const { vault, key } = await createVault(PASS);
+    let v = await writeSecret(vault, key, 'prod-token', 'PRODUCTION-CREDENTIAL');
+    v = await writeSecret(v, key, 'debug-token', 'harmless');
+
+    // Swap the two ciphertexts, exactly as a hand edit would.
+    const swapped: VaultFile = {
+      ...v,
+      records: {
+        'prod-token': v.records['debug-token']!,
+        'debug-token': v.records['prod-token']!,
+      },
+    };
+
+    expect(await readSecret(swapped, key, 'prod-token')).toBeNull();
+    expect(await readSecret(swapped, key, 'debug-token')).toBeNull();
   });
 
-  it('rejects an IV of the wrong size', () => {
-    expect(() =>
-      validateRecord({
-        version: 1,
-        algorithm: CIPHER.name,
-        kdf: KDF.name,
-        iv: toB64(new Uint8Array(8)),
-        ciphertext: toB64(new Uint8Array(32)),
-      }),
-    ).toThrow(/IV/);
+  it('reads each record correctly when they are where they belong', { timeout: SLOW }, async () => {
+    const { vault, key } = await createVault(PASS);
+    let v = await writeSecret(vault, key, 'prod-token', 'PRODUCTION-CREDENTIAL');
+    v = await writeSecret(v, key, 'debug-token', 'harmless');
+
+    expect(await readSecret(v, key, 'prod-token')).toBe('PRODUCTION-CREDENTIAL');
+    expect(await readSecret(v, key, 'debug-token')).toBe('harmless');
+  });
+
+  it('will not accept the verifier as a secret record', { timeout: SLOW }, async () => {
+    // The verifier's AAD is namespaced away from every possible secret id, so
+    // it cannot be promoted into a record that decrypts.
+    const { vault, key } = await createVault(PASS);
+    const forged: VaultFile = { ...vault, records: { anything: vault.verifier } };
+    expect(await readSecret(forged, key, 'anything')).toBeNull();
   });
 });
 
 describe('vault lifecycle', () => {
-  it('unlocks with the right passphrase', { timeout: SLOW }, async () => {
-    const { vault } = await createVault('right passphrase');
-    expect(await unlockVault(vault, 'right passphrase')).not.toBeNull();
-  });
-
-  it('returns null for a wrong passphrase', { timeout: SLOW }, async () => {
-    const { vault } = await createVault('right passphrase');
+  it('unlocks with the right passphrase and not a wrong one', { timeout: SLOW }, async () => {
+    const { vault } = await createVault(PASS);
+    expect(await unlockVault(vault, PASS)).not.toBeNull();
     expect(await unlockVault(vault, 'wrong passphrase')).toBeNull();
   });
 
-  it('stores no plaintext passphrase anywhere in the vault', { timeout: SLOW }, async () => {
-    const { vault } = await createVault('PASSPHRASE-MARKER');
-    expect(JSON.stringify(vault)).not.toContain('PASSPHRASE-MARKER');
+  it('rejects a wrong passphrase even when the vault is empty', { timeout: SLOW }, async () => {
+    // The verifier exists so this is possible without a record to try.
+    const { vault } = await createVault(PASS);
+    expect(Object.keys(vault.records)).toHaveLength(0);
+    expect(await unlockVault(vault, 'wrong')).toBeNull();
   });
 
-  it('caches the derived key without writing it into the vault', { timeout: SLOW }, async () => {
-    const { vault, key } = await createVault('pass');
-    const exported = await exportKey(key);
-    expect(JSON.stringify(vault)).not.toContain(exported);
+  it('stores no passphrase and no key anywhere in the file', { timeout: SLOW }, async () => {
+    const { vault, key } = await createVault('PASSPHRASE-MARKER');
+    const serialised = JSON.stringify(vault);
+    expect(serialised).not.toContain('PASSPHRASE-MARKER');
+    expect(serialised).not.toContain(await exportKey(key));
   });
 
   it('round-trips an exported key', { timeout: SLOW }, async () => {
-    const { key } = await createVault('pass');
+    const { key } = await createVault(PASS);
     const reimported = await importKey(await exportKey(key));
-    const record = await encryptSecret(key, 'value');
-    expect(await decryptSecret(reimported, record)).toBe('value');
+    const sealed = await seal(key, 'aad', 'value');
+    expect(await unseal(reimported, 'aad', sealed)).toBe('value');
   });
 
   it('requires a passphrase', async () => {
@@ -153,144 +181,200 @@ describe('vault lifecycle', () => {
   });
 });
 
-describe('validateVault', () => {
+describe('assertVaultFile', () => {
   it('accepts a freshly created vault', { timeout: SLOW }, async () => {
-    const { vault } = await createVault('pass');
-    expect(() => validateVault(vault)).not.toThrow();
+    const { vault } = await createVault(PASS);
+    expect(() => assertVaultFile(vault)).not.toThrow();
   });
 
-  it('rejects an absurdly low iteration count', { timeout: SLOW }, async () => {
-    // A hostile imported vault claiming 1 iteration would make its own
-    // passphrase trivially brute-forceable.
-    const { vault } = await createVault('pass');
-    expect(() => validateVault({ ...vault, iterations: 1 })).toThrow(/iteration count/);
+  it('bounds the iteration count on both sides', { timeout: SLOW }, async () => {
+    /* An imported vault claiming 1 iteration would make its own passphrase
+       trivially cheap to attack; one claiming a billion would hang the browser
+       on unlock. Neither is the file's choice to make. */
+    const { vault } = await createVault(PASS);
+    expect(() => assertVaultFile({ ...vault, kdf: { ...vault.kdf, iterations: 1 } })).toThrow(
+      /iteration count/,
+    );
+    expect(() => assertVaultFile({ ...vault, kdf: { ...vault.kdf, iterations: 1e12 } })).toThrow(
+      /iteration count/,
+    );
   });
 
-  it('rejects an absurdly high one, which would hang the browser', { timeout: SLOW }, async () => {
-    const { vault } = await createVault('pass');
-    expect(() => validateVault({ ...vault, iterations: 1e12 })).toThrow(/iteration count/);
+  it('rejects an unknown format, algorithm or hash', { timeout: SLOW }, async () => {
+    const { vault } = await createVault(PASS);
+    expect(() => assertVaultFile({ ...vault, format: 99 })).toThrow(/format/);
+    expect(() => assertVaultFile({ ...vault, kdf: { ...vault.kdf, algorithm: 'scrypt' } })).toThrow(
+      /key derivation/,
+    );
+    expect(() => assertVaultFile({ ...vault, kdf: { ...vault.kdf, hash: 'MD5' } })).toThrow(/hash/);
   });
 
-  it('rejects a vault with an unknown version or KDF', { timeout: SLOW }, async () => {
-    const { vault } = await createVault('pass');
-    expect(() => validateVault({ ...vault, version: 99 })).toThrow(/version/);
-    expect(() => validateVault({ ...vault, kdf: 'scrypt' })).toThrow(/key derivation/);
-  });
-
-  it('rejects a missing vault', () => {
-    expect(() => validateVault(null)).toThrow(/No vault/);
+  it('rejects a missing or malformed vault', () => {
+    expect(() => assertVaultFile(null)).toThrow(/No vault/);
+    expect(() => assertVaultFile({ format: 1 })).toThrow(/key parameters/);
   });
 });
 
-describe('decryptOne', () => {
+describe('readSecretWithPassphrase', () => {
   it('needs a passphrase that really works, not a flag', { timeout: SLOW }, async () => {
-    /* This is the reveal path. It re-derives from the supplied passphrase and
-       never consults a cached key, so there is no boolean to patch out --
-       a wrong passphrase produces a wrong key and AES-GCM refuses. */
-    const { vault, key } = await createVault('the passphrase');
-    const withSecret = putRecord(vault, 's1', await encryptSecret(key, 'Bearer revealed'));
+    const { vault, key } = await createVault(PASS);
+    const v = await writeSecret(vault, key, 's1', 'Bearer revealed');
 
-    expect(await decryptOne(withSecret, 'the passphrase', 's1')).toEqual({
+    expect(await readSecretWithPassphrase(v, PASS, 's1')).toEqual({
       ok: true,
       value: 'Bearer revealed',
     });
-    expect(await decryptOne(withSecret, 'wrong', 's1')).toEqual({
+    expect(await readSecretWithPassphrase(v, 'wrong', 's1')).toEqual({
       ok: false,
       error: 'decrypt-failed',
     });
   });
 
   it('reports a missing secret distinctly from a failed decrypt', { timeout: SLOW }, async () => {
-    const { vault } = await createVault('pass');
-    expect(await decryptOne(vault, 'pass', 'nope')).toEqual({ ok: false, error: 'no-such-secret' });
+    const { vault } = await createVault(PASS);
+    expect(await readSecretWithPassphrase(vault, PASS, 'nope')).toEqual({
+      ok: false,
+      error: 'no-such-secret',
+    });
   });
 
-  it('does not distinguish a wrong passphrase from a corrupt record', { timeout: SLOW }, async () => {
-    // Telling them apart would tell an attacker which of the two they face.
-    const { vault, key } = await createVault('pass');
-    const good = putRecord(vault, 's1', await encryptSecret(key, 'value'));
-    const corrupt = putRecord(vault, 's2', { ...good.records['s1']!, ciphertext: toB64(new Uint8Array(32)) });
+  it('does not distinguish a wrong passphrase from a damaged record', { timeout: SLOW }, async () => {
+    // Telling them apart would tell an attacker which they are facing.
+    const { vault, key } = await createVault(PASS);
+    const good = await writeSecret(vault, key, 's1', 'value');
+    const damaged: VaultFile = {
+      ...good,
+      records: { ...good.records, s2: { ...good.records['s1']!, ct: toB64(new Uint8Array(32)) } },
+    };
 
-    const wrongPass = await decryptOne(good, 'wrong', 's1');
-    const badRecord = await decryptOne(corrupt, 'pass', 's2');
-    expect(wrongPass).toEqual(badRecord);
+    expect(await readSecretWithPassphrase(good, 'wrong', 's1')).toEqual(
+      await readSecretWithPassphrase(damaged, PASS, 's2'),
+    );
   });
 });
 
-describe('decryptAll', () => {
+describe('readAll', () => {
   it('returns every value and names the ones that would not decrypt', { timeout: SLOW }, async () => {
-    const { vault, key } = await createVault('pass');
-    let v = putRecord(vault, 'a', await encryptSecret(key, 'value-a'));
-    v = putRecord(v, 'b', await encryptSecret(key, 'value-b'));
-    v = putRecord(v, 'bad', { ...v.records['a']!, ciphertext: toB64(new Uint8Array(32)) });
+    const { vault, key } = await createVault(PASS);
+    let v = await writeSecret(vault, key, 'a', 'value-a');
+    v = await writeSecret(v, key, 'b', 'value-b');
+    v = { ...v, records: { ...v.records, bad: { ...v.records['a']!, ct: toB64(new Uint8Array(32)) } } };
 
-    const { values, corrupt } = await decryptAll(v, key);
+    const { values, unreadable } = await readAll(v, key);
     expect(values).toEqual({ a: 'value-a', b: 'value-b' });
-    expect(corrupt).toEqual(['bad']);
+    expect(unreadable).toEqual(['bad']);
   });
 });
 
-describe('changePassphrase', () => {
-  it('re-encrypts every secret under the new key', { timeout: SLOW }, async () => {
-    const { vault, key } = await createVault('old pass');
-    const withSecrets = putRecord(vault, 's1', await encryptSecret(key, 'Bearer kept'));
+describe('writers do not mutate', () => {
+  it('leaves the original vault untouched', { timeout: SLOW }, async () => {
+    /* The caller persists the result in one write, so an interrupted save must
+       leave the original intact rather than a half-updated file. */
+    const { vault, key } = await createVault(PASS);
 
-    const result = await changePassphrase(withSecrets, 'old pass', 'new pass');
+    const added = await writeSecret(vault, key, 's1', 'value');
+    expect(vault.records).toEqual({});
+    expect(added.records['s1']).toBeDefined();
+
+    const removed = forgetSecret(added, 's1');
+    expect(added.records['s1']).toBeDefined();
+    expect(removed.records['s1']).toBeUndefined();
+  });
+
+  it('returns the same vault when forgetting something absent', { timeout: SLOW }, async () => {
+    const { vault } = await createVault(PASS);
+    expect(forgetSecret(vault, 'nothing')).toBe(vault);
+  });
+});
+
+describe('rekeyVault', () => {
+  it('re-encrypts every secret under the new passphrase', { timeout: SLOW }, async () => {
+    const { vault, key } = await createVault('old passphrase');
+    const withSecret = await writeSecret(vault, key, 's1', 'Bearer kept');
+
+    const result = await rekeyVault(withSecret, 'old passphrase', 'new passphrase');
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
-    expect(await unlockVault(result.vault, 'new pass')).not.toBeNull();
-    expect(await unlockVault(result.vault, 'old pass')).toBeNull();
-    expect(await decryptOne(result.vault, 'new pass', 's1')).toEqual({
+    expect(await unlockVault(result.vault, 'new passphrase')).not.toBeNull();
+    expect(await unlockVault(result.vault, 'old passphrase')).toBeNull();
+    expect(await readSecretWithPassphrase(result.vault, 'new passphrase', 's1')).toEqual({
       ok: true,
       value: 'Bearer kept',
     });
   });
 
+  it('keeps records bound to their names across a rekey', { timeout: SLOW }, async () => {
+    const { vault, key } = await createVault('old passphrase');
+    let v = await writeSecret(vault, key, 'prod', 'PRODUCTION');
+    v = await writeSecret(v, key, 'dev', 'development');
+
+    const result = await rekeyVault(v, 'old passphrase', 'new passphrase');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const swapped: VaultFile = {
+      ...result.vault,
+      records: { prod: result.vault.records['dev']!, dev: result.vault.records['prod']! },
+    };
+    expect(await readSecret(swapped, result.key, 'prod')).toBeNull();
+  });
+
   it('refuses without the current passphrase', { timeout: SLOW }, async () => {
-    const { vault } = await createVault('old pass');
-    expect(await changePassphrase(vault, 'wrong', 'new')).toEqual({
+    const { vault } = await createVault('old passphrase');
+    expect(await rekeyVault(vault, 'wrong', 'new')).toEqual({
       ok: false,
       error: 'incorrect-passphrase',
     });
   });
 
-  it('carries a corrupt record across rather than destroying it', { timeout: SLOW }, async () => {
-    // One unreadable entry must not take the rest of the vault with it.
-    const { vault, key } = await createVault('old pass');
-    let v = putRecord(vault, 'good', await encryptSecret(key, 'kept'));
-    v = putRecord(v, 'bad', { ...v.records['good']!, ciphertext: toB64(new Uint8Array(32)) });
+  it('carries a damaged record across rather than destroying it', { timeout: SLOW }, async () => {
+    const { vault, key } = await createVault('old passphrase');
+    const good = await writeSecret(vault, key, 'good', 'kept');
+    const withDamage: VaultFile = {
+      ...good,
+      records: { ...good.records, bad: { ...good.records['good']!, ct: toB64(new Uint8Array(32)) } },
+    };
 
-    const result = await changePassphrase(v, 'old pass', 'new pass');
+    const result = await rekeyVault(withDamage, 'old passphrase', 'new passphrase');
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
-    expect(result.corrupt).toEqual(['bad']);
+    expect(result.unreadable).toEqual(['bad']);
     expect(Object.keys(result.vault.records).sort()).toEqual(['bad', 'good']);
   });
 
   it('uses a fresh salt, so the same passphrase yields a different key', { timeout: SLOW }, async () => {
-    const { vault } = await createVault('same pass');
-    const result = await changePassphrase(vault, 'same pass', 'same pass');
+    const { vault } = await createVault('same passphrase');
+    const result = await rekeyVault(vault, 'same passphrase', 'same passphrase');
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.vault.salt).not.toBe(vault.salt);
+    expect(result.vault.kdf.salt).not.toBe(vault.kdf.salt);
   });
 });
 
-describe('record helpers', () => {
-  it('do not mutate the vault they are given', { timeout: SLOW }, async () => {
-    // The caller persists the returned object in one write, so an interrupted
-    // save must leave the original intact.
-    const { vault, key } = await createVault('pass');
-    const record = await encryptSecret(key, 'value');
+describe('key derivation parameters', () => {
+  it('uses the documented cost', () => {
+    // Changing this is a security decision, not a tuning one, so it is pinned.
+    expect(KDF.iterations).toBe(600_000);
+    expect(KDF.hash).toBe('SHA-256');
+    expect(KDF.keyBits).toBe(256);
+    expect(CIPHER.tagBits).toBe(128);
+  });
 
-    const added = putRecord(vault, 's1', record);
-    expect(vault.records).toEqual({});
-    expect(added.records['s1']).toBeDefined();
-
-    const removed = removeRecord(added, 's1');
-    expect(added.records['s1']).toBeDefined();
-    expect(removed.records['s1']).toBeUndefined();
+  it('derives different keys from different salts', { timeout: SLOW }, async () => {
+    const a = await deriveKey(PASS, {
+      algorithm: 'PBKDF2',
+      hash: 'SHA-256',
+      iterations: 100_000,
+      salt: toB64(new Uint8Array(KDF.saltBytes).fill(1)),
+    });
+    const b = await deriveKey(PASS, {
+      algorithm: 'PBKDF2',
+      hash: 'SHA-256',
+      iterations: 100_000,
+      salt: toB64(new Uint8Array(KDF.saltBytes).fill(2)),
+    });
+    expect(await exportKey(a)).not.toBe(await exportKey(b));
   });
 });

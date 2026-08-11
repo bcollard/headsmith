@@ -1,12 +1,7 @@
 /* The rule compiler: config in, declarativeNetRequest rules out.
  *
- * Partly derived from OpenModHeader's chromium/background.js (buildRules).
- * Copyright (c) 2026 Shiva M. MIT licensed.
- * https://github.com/Multivalence/OpenModHeader
- *
- * The condition-bucketing approach and the emit/strip structure are
- * upstream's. The match model this compiles from, and the exclusion design
- * described below, are not. See NOTICE.md.
+ * Bucketing headers by condition rather than emitting one rule per header is
+ * an idea from OpenModHeader (MIT, © 2026 Shiva M). See NOTICE.md.
  *
  * This is the file whose output the JSON fixtures pin, because "did my
  * refactor change the rules the browser gets?" is the question that actually

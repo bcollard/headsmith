@@ -1,8 +1,9 @@
 # Third-party notices and attribution
 
-Headsmith is not a fork, but a significant part of it is derived work. This
-file records what came from where, in enough detail that a reader can check
-the claim rather than take it on trust.
+Headsmith is not a fork. Its feature set and its credential-security model were
+taken from two existing extensions; its code, with one exception noted below,
+was not. This file records what came from where in enough detail that a reader
+can check the claim rather than take it on trust.
 
 Both upstream projects are MIT licensed, which permits this and requires that
 their copyright and permission notices be retained. Full licence texts are
@@ -13,49 +14,53 @@ reproduced at the end of this file.
 ## OpenModHeader
 
 - **Upstream:** <https://github.com/Multivalence/OpenModHeader>
-- **Copyright:** © 2026 Shiva M
-- **Licence:** MIT
-- **Relationship:** Headsmith's credential-security model is a TypeScript port
-  of OpenModHeader's, with modifications. This is the substantial derivation.
+- **Copyright:** © 2026 Shiva M. **Licence:** MIT
+- **Relationship:** Headsmith's *feature set and security model* were taken from
+  OpenModHeader. Its code was not.
 
-The kickoff for this project set out to take OpenModHeader's feature set and
-security model, and that is what happened. The following files are derived
-work, listed most-derived first:
+An earlier revision of this repository did contain close ports of several of its
+modules. Those have been rewritten. The record is kept here rather than quietly
+dropped, because the honest statement is not "no code was copied" but "code was
+copied and then replaced", and the git history says so either way.
 
-| Headsmith file | Derived from | Nature of the derivation |
-| --- | --- | --- |
-| `src/core/crypto/vault.ts` | `chromium/vault.js` | Close port. Same function set and signatures, same KDF and cipher parameters (PBKDF2-SHA256 at 600,000 iterations, 16-byte salt, AES-GCM with 12-byte IV and 128-bit tag), same check-sentinel design for passphrase verification, same null-on-authentication-failure contract, same carry-corrupt-records-forward behaviour when rotating a passphrase. |
-| `src/background/secrets.ts` | `chromium/secretstore.js` | Close port. Same storage-area split, same public surface, same auto-lock design in which the deadline is a timestamp in session storage and the alarm only wakes the worker to re-check it. |
-| `src/core/policy.ts` | `chromium/security.js` | Derived. The activation-gate concept, the verdict object's shape, the wildcard-rejection regular expression and the loopback exemption list all originate there. |
-| `src/core/sensitivity.ts` | `chromium/security.js` | Derived. The sensitive-header name list and pattern list originate there, as does the rule that a user's flag may add sensitivity but never remove it. |
-| `src/core/plan.ts` | `chromium/common.js` (`planProfile`) | Derived. The fail-closed credential-resolution structure originates there. |
-| `src/background/apply.ts` | `chromium/background.js` | Derived. The per-rule retry after a batch rejection, the in-flight/queued serialisation, the profile-provenance annotation stripped before submission, and the header-names-only error strings all originate there. |
-| `src/core/compile.ts` | `chromium/background.js` (`buildRules`) | Partly derived. The condition-bucketing approach and the emit/strip structure originate there; the match model it compiles from is a redesign (see below). |
+### What was taken
 
-### What Headsmith changed
+The design, which is genuinely OpenModHeader's and is worth crediting:
 
-Recorded for honesty in both directions — these are the parts that are not
-OpenModHeader's:
+- storing credential-bearing header values outside the profile, under a
+  reference, so a profile object never holds a secret;
+- the two-tier storage idea — a session-only mode and a passphrase-encrypted
+  vault whose key lives only in session storage;
+- failing closed when a credential will not resolve, rather than sending an
+  empty value;
+- requiring a credential-bearing profile to name a host before it applies;
+- grouping headers that share a condition into one declarativeNetRequest rule
+  instead of emitting one rule per header per filter;
+- retrying rule-by-rule after the engine rejects a batch, and reporting the
+  offender by header name only.
 
-- **No persistent-plaintext credential mode.** OpenModHeader offers one. It is
-  the only path by which a credential reaches disk unencrypted, and its
-  presence would have made the plaintext-secret test unwritable without an
-  exception.
-- **Match model.** OpenModHeader uses a flat list of typed filter rows.
-  Headsmith uses a structure shaped like a `declarativeNetRequest` condition,
-  and adds domain *inclusion* (`requestDomains`), which OpenModHeader lacks
-  entirely — it offers only domain exclusion.
-- **URL exclusions are global, not per-profile.** A DNR `allow` rule outranks
-  every lower-priority rule from every profile. OpenModHeader emits per-profile
-  URL exclusions as bare `allow` rules, so one profile's exclusion silently
-  suppresses other profiles on that URL.
-- **Unlock throttling.** OpenModHeader has none.
-- **A raised minimum iteration count** when validating an imported vault, so a
-  hostile vault cannot declare its own passphrase cheap to attack.
-- **Rule-budget accounting** (`src/core/budget.ts`) — no counterpart upstream.
-- **Chrome only**, and therefore no blocking `webRequest` path.
-- **Tests.** OpenModHeader has none; the derived files here are covered by the
-  suite in this repository.
+### What is not shared
+
+The implementations in `src/core/crypto/vault.ts`, `src/background/secrets.ts`,
+`src/core/policy.ts`, `src/core/sensitivity.ts`, `src/core/plan.ts`,
+`src/background/apply.ts` and `src/core/compile.ts` were written for this
+project. Several differ deliberately, and where they do it is because the
+rewrite was an opportunity to make a better choice rather than inherit one:
+
+| Area | Difference |
+| --- | --- |
+| Vault records | Each record is sealed with its secret id as AES-GCM additional authenticated data, so a record moved between ids fails to decrypt. Without that binding, swapping two ciphertexts in the vault file yields a vault that decrypts perfectly and sends the wrong credential to the wrong host. |
+| Vault parameters | KDF parameters live once on the vault rather than being duplicated onto every record, so the file cannot disagree with itself. The iteration count is bounded on both sides, so an imported vault cannot declare its own passphrase cheap to attack. |
+| Host restriction | Decided by a positive test — does any literal text survive once the parts that match anything are stripped? — rather than by a list of wildcard spellings to reject. A blocklist is only as good as the imagination of whoever wrote it, and a credential is released on the strength of the answer. |
+| Sensitivity detection | An ordered rule table where a match carries a *reason*, so the editor can explain why a header was flagged instead of only decorating it. |
+| Planning | Each header is classified into exactly one outcome and the outcomes are partitioned afterwards, so "can a header be both emitted and reported missing?" is answered by the type rather than by reading a loop. |
+| Batch recovery | A rejected batch is bisected rather than retried one rule at a time: one bad rule among 64 is found in about 14 engine calls instead of 64. |
+| Storage modes | Two implementations of one store interface, rather than a mode conditional repeated in every function. |
+| Credential modes | There is no persistent-plaintext mode. It is the only path by which a credential reaches disk unencrypted, and it would have required an exception in the plaintext-secret test. |
+| Match model | A structure shaped like a declarativeNetRequest condition, with domain *inclusion* — which OpenModHeader lacks entirely, offering only domain exclusion. |
+| URL exclusions | Global rather than per-profile, because a DNR `allow` rule outranks every lower-priority rule from every profile. OpenModHeader emits per-profile exclusions as bare `allow` rules, so one profile's exclusion silently suppresses the others on that URL. |
+| Scope | Chrome only, so no blocking `webRequest` path exists. |
+| Tests | OpenModHeader has none. |
 
 ---
 
@@ -67,9 +72,9 @@ OpenModHeader's:
 - **Relationship:** Headsmith takes its engineering approach — not its code —
   from FlexHeader, with one file derived directly.
 
-| Headsmith file | Derived from | Nature of the derivation |
-| --- | --- | --- |
-| `test/fixtures/harness.ts` | `src/background/__fixtures__/fixtureHelpers.ts` | Derived. The pattern of snapshotting compiled rule output to JSON and regenerating it behind an `UPDATE_FIXTURES` environment variable originates there. Headsmith's version additionally records which rule bucket each rule landed in, and the budget usage. |
+| Headsmith file | Nature of the derivation |
+| --- | --- |
+| `test/fixtures/harness.ts` | The pattern of snapshotting compiled rule output to JSON and regenerating it behind an `UPDATE_FIXTURES` environment variable originates there; the kickoff for this project asked for it by name. Headsmith's version additionally records which rule bucket each rule landed in — the most security-relevant fact about the output — and the budget usage. |
 
 Beyond that single file, the influence is structural rather than textual: WXT +
 Vite + TypeScript + React with strict mode, Vitest for unit tests and Playwright
@@ -101,14 +106,14 @@ migrations, and building before the end-to-end suite runs.
 
 ---
 
-## Not derived
+## Written for this project
 
-For completeness, the parts of Headsmith with no upstream counterpart: the four
-invariant guard scripts (except `guard-manifest-refs.mjs` as noted above) and
-the JavaScript tokenizer inside the egress guard; `src/core/budget.ts`;
-`test/fakes/chrome.ts`; `src/core/schema.ts`'s never-throws parsing discipline
-and parse-boundary credential stripping; `src/core/migrations/index.ts`; the
-GitHub Actions workflows; the logo and its generator; and the test suite.
+Everything not listed above, including: the four invariant guard scripts and the
+JavaScript tokenizer inside the egress guard; `src/core/budget.ts`;
+`src/core/schema.ts`; `src/core/migrations/`; `test/fakes/chrome.ts`; the
+deterministic ZIP writer and the reproducible-build verifier; the GitHub Actions
+workflows; the logo and its generator; the entire user interface; and the test
+suite.
 
 ---
 

@@ -51,6 +51,36 @@ describe('isHostRestricted', () => {
   it('rejects a fragment too short to name anything', () => {
     expect(isHostRestricted(match({ urlContains: ['ab'] }))).toBe(false);
   });
+
+  /* The check is a positive test -- does any literal text survive once the
+     parts that match anything are stripped? -- rather than a list of wildcard
+     spellings to reject. These are the cases that motivated it: each matches
+     everything, and none appears on any list anyone would think to write.
+     A blocklist would pass them all, and passing means a credential is
+     released. */
+  const unenumerable = [
+    '.{0,}',
+    '[^]*',
+    '(?:)',
+    '\\w*\\d*',
+    '[a-z]*',
+    'https?://.*',
+    '^[\\s\\S]*$',
+    '*://*',
+  ];
+  for (const value of unenumerable) {
+    it(`rejects "${value}", which no wildcard list would enumerate`, () => {
+      expect(isHostRestricted(match({ urlRegex: [value] }))).toBe(false);
+      expect(isHostRestricted(match({ urlContains: [value] }))).toBe(false);
+    });
+  }
+
+  it('still accepts a pattern with a real host buried in metacharacters', () => {
+    // The flip side: stripping the wildcards must not strip the substance.
+    expect(isHostRestricted(match({ urlRegex: ['^https?://[a-z]+\\.example\\.com/.*$'] }))).toBe(
+      true,
+    );
+  });
 });
 
 describe('insecureHosts', () => {

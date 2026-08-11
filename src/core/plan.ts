@@ -1,25 +1,33 @@
 /* Turns a profile into the header operations it implies, resolving credentials
  * on the way.
  *
- * Derived from OpenModHeader's chromium/common.js (planProfile).
- * Copyright (c) 2026 Shiva M. MIT licensed.
- * https://github.com/Multivalence/OpenModHeader
+ * The fail-closed principle stated below is OpenModHeader's (MIT, (c) 2026
+ * Shiva M). See NOTICE.md.
  *
- * The fail-closed credential-resolution structure is upstream's. See NOTICE.md.
+ * Separate from the compiler because the two answer different questions. This
+ * answers "what should happen to which headers", which is where credential
+ * resolution lives. The compiler answers "what rules express that", which is
+ * where Chrome's constraints live. Keeping them apart means the fail-closed
+ * behaviour can be tested without reasoning about rule ids and priorities.
  *
- * Separate from the compiler because the two answer different questions.
- * The planner answers "what should happen to which headers", which is where
- * credential resolution and fail-closed behaviour live. The compiler answers
- * "what rules express that", which is where Chrome's constraints live. Keeping
- * them apart means the fail-closed logic can be tested without reasoning about
- * rule ids and priorities.
+ * ## The fail-closed rule
  *
- * The fail-closed rule, stated once: an operation whose credential cannot be
- * resolved is dropped. It is never emitted with an empty value. A request
- * carrying `Authorization:` with nothing after it is worse than a request
- * carrying no `Authorization` at all -- the first looks like an authentication
- * attempt to the server and may lock an account or burn a rate limit; the
- * second is simply unauthenticated.
+ * An operation whose credential cannot be resolved is **dropped**. It is never
+ * emitted with an empty value.
+ *
+ * This is not fastidiousness. A request carrying `Authorization:` with nothing
+ * after it is materially worse than a request carrying no `Authorization` at
+ * all: the server reads it as a failed authentication attempt, which can burn
+ * a rate limit, trip a lockout, or page somebody. Absent means unauthenticated;
+ * empty means wrong.
+ *
+ * ## Shape
+ *
+ * Each header is classified into exactly one outcome, and the outcomes are
+ * partitioned afterwards. The alternative -- a loop pushing into several
+ * accumulator arrays as it goes -- makes "can a header be both emitted and
+ * reported missing?" a question you answer by reading the whole loop. Here it
+ * is answered by the type.
  */
 
 import { carriesCredential, checkOperation, type OperationProblem } from './sensitivity';
@@ -32,16 +40,23 @@ export interface PlannedOp {
   readonly operation: HeaderOp['operation'];
   /** Absent for `remove`. */
   readonly value?: string;
-  /** Whether this op carries a credential, and so must go to a session rule. */
+  /** Carries a credential, and so must be routed to a session rule. */
   readonly sensitive: boolean;
 }
+
+/** Exactly one of these per live header. */
+type Outcome =
+  | { kind: 'emit'; op: PlannedOp }
+  | { kind: 'rejected'; header: string; problem: OperationProblem }
+  | { kind: 'unresolved'; secretId: string }
+  | { kind: 'unmanaged'; header: string };
 
 export interface ProfilePlan {
   readonly requestOps: readonly PlannedOp[];
   readonly responseOps: readonly PlannedOp[];
-  /** Secret ids that were referenced but did not resolve. */
+  /** Secret ids referenced but not resolvable. */
   readonly missingSecretIds: readonly string[];
-  /** Sensitive headers carrying no secret reference at all. */
+  /** Credential-bearing headers carrying no secret reference at all. */
   readonly unmanagedHeaders: readonly string[];
   /** Operations Chrome would reject, dropped before it sees them. */
   readonly problems: readonly { header: string; problem: OperationProblem }[];
@@ -54,67 +69,69 @@ function isLive(header: HeaderOp): boolean {
   return header.enabled && header.name.trim().length > 0;
 }
 
-export function planProfile(profile: Profile, resolve: SecretResolver | null = null): ProfilePlan {
-  const missingSecretIds = new Set<string>();
-  const unmanagedHeaders = new Set<string>();
-  const problems: { header: string; problem: OperationProblem }[] = [];
+/* Classifies one header. Total: every path returns an Outcome, so a header can
+   never be silently neither emitted nor accounted for. */
+function classify(
+  header: HeaderOp,
+  target: 'request' | 'response',
+  resolve: SecretResolver | null,
+): Outcome {
+  /* Checked before anything else, because Chrome rejects the entire batch on
+     one malformed rule -- a single typo would take every other rule in the
+     profile down with it. */
+  const problem = checkOperation(header, target);
+  if (problem) return { kind: 'rejected', header: header.name, problem };
 
-  const planList = (headers: readonly HeaderOp[], target: 'request' | 'response'): PlannedOp[] => {
-    const out: PlannedOp[] = [];
+  const name = header.name.trim().toLowerCase();
 
-    for (const header of headers) {
-      if (!isLive(header)) continue;
+  if (header.operation === 'remove') {
+    // No value, so no credential to resolve and nothing to leak.
+    return { kind: 'emit', op: { header: name, operation: 'remove', sensitive: false } };
+  }
 
-      /* Dropped here rather than handed to Chrome: one invalid rule makes
-         declarativeNetRequest reject the entire batch, so a single typo would
-         take every other rule in the profile down with it. */
-      const problem = checkOperation(header, target);
-      if (problem) {
-        problems.push({ header: header.name, problem });
-        continue;
-      }
+  if (!carriesCredential(header)) {
+    return {
+      kind: 'emit',
+      op: { header: name, operation: header.operation, value: header.value, sensitive: false },
+    };
+  }
 
-      const name = header.name.trim().toLowerCase();
+  /* Credential-bearing from here down. */
+  if (header.secretId === null) return { kind: 'unmanaged', header: header.name };
 
-      if (header.operation === 'remove') {
-        // No value involved, so no credential to resolve.
-        out.push({ header: name, operation: 'remove', sensitive: false });
-        continue;
-      }
-
-      const sensitive = carriesCredential(header);
-
-      if (!sensitive) {
-        out.push({ header: name, operation: header.operation, value: header.value, sensitive: false });
-        continue;
-      }
-
-      /* A credential-bearing header with no secret reference is unmanaged.
-         Its inline value -- if a hand-edited config gave it one -- is dropped
-         rather than sent. */
-      if (!header.secretId) {
-        unmanagedHeaders.add(header.name);
-        continue;
-      }
-
-      const value = resolve ? resolve(header.secretId) : undefined;
-      if (value == null || value === '') {
-        missingSecretIds.add(header.secretId);
-        continue;
-      }
-
-      out.push({ header: name, operation: header.operation, value, sensitive: true });
-    }
-
-    return out;
-  };
+  const value = resolve?.(header.secretId);
+  /* An empty string is treated as unresolved, not as a valid credential: it is
+     the failure mode, not a value anyone means to send. */
+  if (value === null || value === undefined || value === '') {
+    return { kind: 'unresolved', secretId: header.secretId };
+  }
 
   return {
-    requestOps: planList(profile.requestHeaders, 'request'),
-    responseOps: planList(profile.responseHeaders, 'response'),
-    missingSecretIds: [...missingSecretIds],
-    unmanagedHeaders: [...unmanagedHeaders],
-    problems,
+    kind: 'emit',
+    op: { header: name, operation: header.operation, value, sensitive: true },
+  };
+}
+
+export function planProfile(profile: Profile, resolve: SecretResolver | null = null): ProfilePlan {
+  const request = profile.requestHeaders.filter(isLive).map((h) => classify(h, 'request', resolve));
+  const response = profile.responseHeaders
+    .filter(isLive)
+    .map((h) => classify(h, 'response', resolve));
+  const all = [...request, ...response];
+
+  const emitted = (outcomes: Outcome[]): PlannedOp[] =>
+    outcomes.flatMap((o) => (o.kind === 'emit' ? [o.op] : []));
+
+  return {
+    requestOps: emitted(request),
+    responseOps: emitted(response),
+    missingSecretIds: [
+      ...new Set(all.flatMap((o) => (o.kind === 'unresolved' ? [o.secretId] : []))),
+    ],
+    unmanagedHeaders: [...new Set(all.flatMap((o) => (o.kind === 'unmanaged' ? [o.header] : [])))],
+    problems: all.flatMap((o) =>
+      o.kind === 'rejected' ? [{ header: o.header, problem: o.problem }] : [],
+    ),
   };
 }
 
@@ -122,16 +139,20 @@ export function planIsEmpty(plan: ProfilePlan): boolean {
   return plan.requestOps.length === 0 && plan.responseOps.length === 0;
 }
 
-/* How many header operations a config would apply, for the toolbar badge. */
+/* How many header operations a config would actually apply, for the toolbar
+   badge. Counts what survives planning, not what is configured -- a badge
+   claiming a credential rule is active while it is being withheld would be
+   worse than no badge. */
 export function countActiveOps(
   profiles: readonly Profile[],
   paused: boolean,
   resolve: SecretResolver | null = null,
 ): number {
   if (paused) return 0;
-  return profiles.reduce((total, profile) => {
-    if (!profile.enabled) return total;
-    const plan = planProfile(profile, resolve);
-    return total + plan.requestOps.length + plan.responseOps.length;
-  }, 0);
+  return profiles
+    .filter((profile) => profile.enabled)
+    .reduce((total, profile) => {
+      const plan = planProfile(profile, resolve);
+      return total + plan.requestOps.length + plan.responseOps.length;
+    }, 0);
 }

@@ -1,29 +1,37 @@
 /* Handing compiled rules to the browser.
  *
- * Derived from OpenModHeader's chromium/background.js.
- * Copyright (c) 2026 Shiva M. MIT licensed.
- * https://github.com/Multivalence/OpenModHeader
+ * Recovering from a batch the engine rejects, and naming the offender by header
+ * only, are ideas from OpenModHeader (MIT, (c) 2026 Shiva M). The recovery
+ * strategy here differs -- see below, and NOTICE.md.
  *
- * The per-rule retry after a batch rejection, the in-flight/queued
- * serialisation, the stripped profile annotation and the header-names-only
- * error strings are upstream's. See NOTICE.md.
+ * The compiler decides what the rules are. This decides how they get there,
+ * and has three problems to solve that the compiler does not.
  *
- * The compiler decides what the rules are; this decides how they get there.
- * Three things it has to get right:
+ * ## 1. Replacement has to be atomic
  *
- * 1. **Atomic replacement.** Each update removes every existing rule in the
- *    set and adds the new ones in the same call, so there is no window where
- *    a request could be matched by a half-applied rule set.
+ * Each update removes every existing rule in the set and adds the new ones in
+ * the same call, so there is no instant at which a request could be matched by
+ * a half-applied rule set.
  *
- * 2. **Per-rule fallback.** declarativeNetRequest rejects the *entire batch*
- *    if one rule is malformed. A batch failure therefore retries rule by rule
- *    so the survivors still apply and the offender can be named. Without this
- *    a single bad regex silently disables every rule the user has.
+ * ## 2. One bad rule must not take the others down
  *
- * 3. **Serialisation.** Rule builds are triggered by storage changes, tab
- *    events and alarms, all of which can arrive together. Overlapping updates
- *    would race on the remove-then-add, so a build in flight sets a flag and
- *    the next request coalesces into a single follow-up run.
+ * declarativeNetRequest validates a batch as a unit and rejects *all* of it if
+ * any single rule is malformed. Left alone, one bad regex silently disables
+ * everything the user has configured.
+ *
+ * The obvious recovery is to re-add the rules one at a time. That works, and
+ * it costs one engine round-trip per rule -- 120 calls for a config with 120
+ * rules, every time, for one typo. Instead this bisects: split the batch, try
+ * each half, and recurse only into halves that fail. A single bad rule among
+ * 120 is found in about 14 calls rather than 120, and a batch that fails for a
+ * reason unrelated to any individual rule (a quota, say) is discovered almost
+ * immediately rather than after re-testing everything.
+ *
+ * ## 3. Builds must not race
+ *
+ * Storage changes, alarms and startup can all fire at once. Overlapping
+ * updates would interleave their remove-then-add pairs, so a build in flight
+ * sets a flag and the next request coalesces into a single follow-up run.
  */
 
 import { budgetFor } from '../core/budget';
@@ -33,73 +41,103 @@ import { badge, dnr, type RuleUpdate } from '../platform/chrome';
 import { resolveSecrets, isUnlocked } from './secrets';
 import { loadConfig, saveStatus, type Status } from './store';
 
+type Engine = {
+  read: () => Promise<{ id: number }[]>;
+  write: (update: RuleUpdate) => Promise<void>;
+};
+
 let running = false;
 let queued = false;
 
-/* Applies one bucket, falling back to rule-by-rule on a batch rejection. */
-async function applyBucket(
-  rules: readonly AnnotatedRule[],
-  getExisting: () => Promise<{ id: number }[]>,
-  update: (options: RuleUpdate) => Promise<void>,
-): Promise<string[]> {
+/* Adds `rules`, returning the ones the engine refused.
+ *
+ * Bisection: if a batch is rejected and holds more than one rule, split it and
+ * recurse. A single rule that is rejected alone is the culprit and is
+ * reported. Rules already accepted stay accepted -- adds are cumulative once
+ * the set has been cleared. */
+async function addRules(engine: Engine, rules: readonly AnnotatedRule[]): Promise<AnnotatedRule[]> {
+  if (rules.length === 0) return [];
+
+  try {
+    await engine.write({ addRules: forChrome(rules) as chrome.declarativeNetRequest.Rule[] });
+    return [];
+  } catch (err) {
+    if (rules.length === 1) {
+      lastError.set(rules[0]!, err);
+      return [...rules];
+    }
+  }
+
+  const middle = Math.floor(rules.length / 2);
+  return [
+    ...(await addRules(engine, rules.slice(0, middle))),
+    ...(await addRules(engine, rules.slice(middle))),
+  ];
+}
+
+/* Why each rejected rule was rejected, populated during bisection. A WeakMap
+   so it cannot keep rules alive past the build that produced them. */
+const lastError = new WeakMap<AnnotatedRule, unknown>();
+
+async function applyBucket(engine: Engine, rules: readonly AnnotatedRule[]): Promise<string[]> {
   const errors: string[] = [];
 
-  /* Every engine call here is treated as fallible, including the ones that
-     "cannot" fail. applyRules is the top of the stack: an uncaught throw
-     anywhere below means no rules are applied *and* no status is written, so
-     the user sees a silently dead extension with nothing to explain it.
-     Quota exhaustion can make even a remove-only call fail. */
-  let removeRuleIds: number[] = [];
+  /* Every engine call is treated as fallible, including the ones that
+     "cannot" fail. applyRules is the top of the stack: an uncaught throw below
+     means no rules are applied *and* no status is written, leaving a silently
+     dead extension with nothing to explain it. Quota exhaustion can make even
+     a remove-only call fail. */
+  let existing: { id: number }[] = [];
   try {
-    removeRuleIds = (await getExisting()).map((r) => r.id);
+    existing = await engine.read();
   } catch (err) {
     errors.push(`could not read the existing rules — ${reason(err)}`);
   }
 
+  const removeRuleIds = existing.map((rule) => rule.id);
+
+  // The happy path: one call that both clears and replaces, atomically.
   try {
-    await update({
+    await engine.write({
       removeRuleIds,
       addRules: forChrome(rules) as chrome.declarativeNetRequest.Rule[],
     });
     return errors;
   } catch {
-    /* The batch was rejected. One malformed rule rejects all of them, so retry
-       individually: the good rules still land and the offender gets named. */
+    /* Rejected as a batch. Clear the set, then find the offenders. */
   }
 
   try {
-    await update({ removeRuleIds });
+    await engine.write({ removeRuleIds });
   } catch (err) {
     /* The set could not be cleared, so stale rules may still be live. Say so
-       rather than adding on top of an unknown state. */
+       rather than adding on top of a state we cannot describe. */
     errors.push(`could not clear the previous rules — ${reason(err)}`);
     return errors;
   }
 
-  for (const rule of rules) {
-    try {
-      await update({ addRules: [...forChrome([rule])] as chrome.declarativeNetRequest.Rule[] });
-    } catch (err) {
-      errors.push(describe(rule, err));
-    }
+  for (const rejected of await addRules(engine, rules)) {
+    errors.push(describe(rejected, lastError.get(rejected)));
   }
   return errors;
 }
 
-function reason(err: unknown): string {
-  return String(err instanceof Error ? err.message : err).replace(/^Error:\s*/, '');
-}
-
-/* Describes a rejected rule by header *name* only. A rule that failed may
-   carry a credential in its value, and this string is written to
-   storage.local for the popup to read -- so the value must never reach it. */
+/* Describes a rejected rule by header *name* only.
+ *
+ * A rule that failed may carry a credential in its value, and this string is
+ * written to storage.local for the popup to read. The value must never reach
+ * it. */
 function describe(rule: AnnotatedRule, err: unknown): string {
   const names = [
     ...(rule.action.requestHeaders ?? []).map((h) => h.header),
     ...(rule.action.responseHeaders ?? []).map((h) => h.header),
   ];
-  const what = names.length ? names.join(', ') : rule.action.type;
+  const what = names.length > 0 ? names.join(', ') : rule.action.type;
   return `${rule.__profile ?? 'unknown profile'}: ${what} — ${reason(err)}`;
+}
+
+function reason(err: unknown): string {
+  return String(err instanceof Error ? err.message : err).replace(/^Error:\s*/, '');
 }
 
 export interface ApplyOutcome {
@@ -108,8 +146,8 @@ export interface ApplyOutcome {
   readonly status: Status;
 }
 
-/* Compiles the current config and applies it. Serialised: concurrent calls
-   coalesce into one follow-up run rather than racing. */
+/* Compiles the current config and applies it. Serialised: a concurrent call
+   coalesces into one follow-up run rather than racing. */
 export async function applyRules(now: number = Date.now()): Promise<ApplyOutcome | undefined> {
   if (running) {
     queued = true;
@@ -120,8 +158,7 @@ export async function applyRules(now: number = Date.now()): Promise<ApplyOutcome
   try {
     const config = await loadConfig();
     const secrets = await resolveSecrets(config.settings);
-    const unlocked =
-      config.settings.credentialStorage === 'vault' ? await isUnlocked() : true;
+    const unlocked = config.settings.credentialStorage === 'vault' ? await isUnlocked() : true;
 
     const result = compile(config, {
       resolve: (id) => secrets[id],
@@ -130,17 +167,17 @@ export async function applyRules(now: number = Date.now()): Promise<ApplyOutcome
     });
 
     const errors = [
-      ...(await applyBucket(result.dynamic, dnr.getDynamic, dnr.updateDynamic)),
-      ...(await applyBucket(result.session, dnr.getSession, dnr.updateSession)),
+      ...(await applyBucket({ read: dnr.getDynamic, write: dnr.updateDynamic }, result.dynamic)),
+      ...(await applyBucket({ read: dnr.getSession, write: dnr.updateSession }, result.session)),
     ];
 
     const budget = budgetFor(result);
     const status: Status = {
       ruleErrors: errors,
-      blocked: result.blocked.map((b) => ({
-        profileId: b.profileId,
-        profileName: b.profileName,
-        reasons: [...b.verdict.reasons],
+      blocked: result.blocked.map((entry) => ({
+        profileId: entry.profileId,
+        profileName: entry.profileName,
+        reasons: [...entry.verdict.reasons],
       })),
       problems: [...result.problems],
       vaultUnlocked: unlocked,
@@ -154,7 +191,7 @@ export async function applyRules(now: number = Date.now()): Promise<ApplyOutcome
     };
 
     await saveStatus(status);
-    await updateBadge(config, result, unlocked, secrets);
+    await updateBadge(config, result, unlocked);
 
     return { result, errors, status };
   } finally {
@@ -166,14 +203,16 @@ export async function applyRules(now: number = Date.now()): Promise<ApplyOutcome
   }
 }
 
-/* Drops every session rule. In v1 the session set holds credential-bearing
-   rules and nothing else, so this is exactly "forget the credentials the
-   browser was given" -- which is what locking has to mean to be worth
-   anything. */
+/* Drops every session rule.
+ *
+ * In v1 the session set holds credential-bearing rules and nothing else, so
+ * this is exactly "forget the credentials the browser was handed" -- which is
+ * what locking has to mean. Discarding the key alone would not stop the
+ * browser from continuing to send a rule it already has. */
 export async function clearSessionRules(): Promise<number> {
   const existing = await dnr.getSession();
   if (existing.length === 0) return 0;
-  await dnr.updateSession({ removeRuleIds: existing.map((r) => r.id) });
+  await dnr.updateSession({ removeRuleIds: existing.map((rule) => rule.id) });
   return existing.length;
 }
 
@@ -181,51 +220,45 @@ async function updateBadge(
   config: Config,
   result: CompileResult,
   unlocked: boolean,
-  secrets: Record<string, string>,
 ): Promise<void> {
   if (config.paused) {
     await badge.set('off', '#6b7688', 'Headsmith — off');
     return;
   }
 
-  const locked = config.settings.credentialStorage === 'vault' && !unlocked;
-  if (locked) {
+  if (config.settings.credentialStorage === 'vault' && !unlocked) {
     await badge.set('lock', '#6d28d9', 'Headsmith — vault locked');
     return;
   }
 
-  /* Counts header operations actually emitted, not operations configured. A
-     badge that counted the latter would claim a credential rule is active
-     while it was being withheld. */
+  /* Counts header operations actually emitted, not operations configured. The
+     difference matters: a badge counting configuration would claim a
+     credential rule is active while it was being withheld. */
   const count = [...result.dynamic, ...result.session].reduce(
     (total, rule) =>
-      total +
-      (rule.action.requestHeaders?.length ?? 0) +
-      (rule.action.responseHeaders?.length ?? 0),
+      total + (rule.action.requestHeaders?.length ?? 0) + (rule.action.responseHeaders?.length ?? 0),
     0,
   );
 
-  const active = config.profiles.find((p) => p.id === config.activeProfileId);
-  const suffix = result.blocked.length ? `, ${result.blocked.length} needing attention` : '';
+  const active = config.profiles.find((profile) => profile.id === config.activeProfileId);
+  const attention = result.blocked.length > 0 ? `, ${result.blocked.length} needing attention` : '';
 
   await badge.set(
-    count ? String(count) : '',
+    count > 0 ? String(count) : '',
     active?.color ?? '#b4470e',
-    count
-      ? `Headsmith — ${count} header${count === 1 ? '' : 's'} active${suffix}`
+    count > 0
+      ? `Headsmith — ${count} header${count === 1 ? '' : 's'} active${attention}`
       : 'Headsmith — nothing active',
   );
-
-  void secrets;
 }
 
-/* Every secret id still referenced, for orphan pruning. */
+/** Every secret id still referenced, for orphan pruning. */
 export async function referencedSecretIds(): Promise<string[]> {
   return collectSecretIds(await loadConfig());
 }
 
-/* Test seam: the module-level serialisation flags survive between tests in the
-   same file otherwise. */
+/* Test seam: the module-level serialisation flags otherwise persist between
+   tests in the same file. */
 export function resetApplyState(): void {
   running = false;
   queued = false;

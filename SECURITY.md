@@ -160,18 +160,24 @@ the security story that does not require trusting us at all.
 
 ## Provenance of the credential-security code
 
-Worth stating plainly on a page that asks you to trust this code: the
-credential-security model here is not original. `vault.ts`, `secrets.ts`,
-`policy.ts`, `sensitivity.ts` and `plan.ts` are ports of OpenModHeader's
-equivalents, with modifications. That was deliberate — the design was reviewed,
-found sound, and reimplemented in TypeScript with tests rather than reinvented.
+Worth stating on a page that asks you to trust this code: the credential-security
+*model* here is not original. Storing values under a reference rather than in the
+profile, the session-only and encrypted-vault modes, failing closed when a
+credential will not resolve, and requiring a host restriction before a credential
+applies are all OpenModHeader's design, and the reason to adopt it was that it is
+a good one.
 
-This matters to you in two directions. In its favour, the design has an
-existing implementation and users. Against it, a flaw in the original is very
-likely a flaw here too, so an advisory against OpenModHeader's credential
-handling should be read as applying to Headsmith until checked.
+The implementations are this project's, and several differ deliberately. The one
+worth naming here: each vault record is sealed with its own secret id as AES-GCM
+additional authenticated data, so a record moved between ids fails to decrypt.
+Without that, hand-editing the vault file to swap two ciphertexts produces a file
+that decrypts perfectly and sends the wrong credential to the wrong host.
 
-What differs, and why, is itemised in [NOTICE.md](NOTICE.md).
+What this means for you: a design flaw in OpenModHeader's model may well apply
+here too, and an advisory against it is worth reading as though it were against
+Headsmith. An implementation bug in its code is not.
+
+Itemised in [NOTICE.md](NOTICE.md).
 
 ## Reporting a vulnerability
 

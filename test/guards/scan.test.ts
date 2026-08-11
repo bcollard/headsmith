@@ -87,6 +87,39 @@ describe('scanJs', () => {
   });
 });
 
+describe('withoutComments', () => {
+  /* Added after the core-purity guard failed on prose. It matched import
+     specifiers against raw source, so a comment containing the word "from"
+     followed by a quoted phrase was read as an import. A guard that cries wolf
+     is a guard people learn to override, so this is the fix and these are its
+     tests. */
+  it('keeps string literals intact, unlike `code`', () => {
+    const { code, withoutComments } = scanJs(`import x from './real-module';`);
+    expect(withoutComments).toContain('./real-module');
+    expect(code).not.toContain('./real-module');
+  });
+
+  it('removes a quoted phrase that appears inside a comment', () => {
+    const source = `/* explains why it imports "is this sensitive" from "elsewhere" */
+import real from './actual';`;
+    const { withoutComments } = scanJs(source);
+    expect(withoutComments).not.toContain('is this sensitive');
+    expect(withoutComments).toContain('./actual');
+  });
+
+  it('removes a line comment containing a quoted phrase', () => {
+    const { withoutComments } = scanJs(`// taken from "somewhere else"\nconst x = 1;`);
+    expect(withoutComments).not.toContain('somewhere else');
+    expect(withoutComments).toContain('const x = 1;');
+  });
+
+  it('preserves newlines from block comments so line numbers survive', () => {
+    const source = '/*\n\n\n*/\nconst x = 1;';
+    const { withoutComments } = scanJs(source);
+    expect(withoutComments.split('\n').length).toBe(source.split('\n').length);
+  });
+});
+
 describe('externalOrigins', () => {
   it('extracts hosts from http and https URLs', () => {
     expect(externalOrigins('see https://a.example/x and http://b.example/y')).toEqual([

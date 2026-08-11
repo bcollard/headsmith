@@ -135,10 +135,19 @@ describe('vault mode', () => {
     await secrets.initVault(PASSPHRASE);
     await secrets.putSecret('secret-canary', TOKEN, config.settings);
 
-    const dump = fake.dumpLocalJson();
-    expect(dump).not.toContain(TOKEN);
-    // The record really is there, just unreadable.
-    expect(dump).toContain('ciphertext');
+    expect(fake.dumpLocalJson()).not.toContain(TOKEN);
+
+    /* The record really is there, just unreadable -- asserted on the stored
+       structure rather than on a field name, so renaming a field cannot
+       silently turn this into a test that passes because nothing was
+       written at all. */
+    const stored = fake.dumpLocal()['vault'] as {
+      records: Record<string, { iv: string; ct: string }>;
+    };
+    const record = stored.records['secret-canary'];
+    expect(record).toBeDefined();
+    expect(record!.ct.length).toBeGreaterThan(0);
+    expect(record!.ct).not.toContain(TOKEN);
   });
 
   it('does not mirror the plaintext into storage.session on unlock', { timeout: 60_000 }, async () => {

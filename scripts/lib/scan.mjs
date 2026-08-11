@@ -39,6 +39,11 @@ export function rel(file, root) {
 export function scanJs(source) {
   const strings = [];
   let code = '';
+  /* Comments blanked, string literals intact. Needed for anything that has to
+     read a string in real code -- an import specifier, say -- without also
+     reading prose. `code` cannot serve: it replaces literals with empty
+     quotes, so the specifier is gone by then. */
+  let withoutComments = '';
   let i = 0;
   const n = source.length;
 
@@ -59,7 +64,11 @@ export function scanJs(source) {
     // Block comment
     if (c === '/' && next === '*') {
       i += 2;
-      while (i < n && !(source[i] === '*' && source[i + 1] === '/')) i++;
+      while (i < n && !(source[i] === '*' && source[i + 1] === '/')) {
+        // Keep newlines so reported line numbers stay meaningful.
+        if (source[i] === '\n') withoutComments += '\n';
+        i++;
+      }
       i += 2;
       continue;
     }
@@ -82,6 +91,7 @@ export function scanJs(source) {
       i++;
       strings.push(value);
       code += quote + quote;
+      withoutComments += quote + value + quote;
       lastSignificant = quote;
       continue;
     }
@@ -103,16 +113,18 @@ export function scanJs(source) {
       }
       i++;
       code += '/re/';
+      withoutComments += '/re/';
       lastSignificant = '/';
       continue;
     }
 
     code += c;
+    withoutComments += c;
     if (!/\s/.test(c)) lastSignificant = c;
     i++;
   }
 
-  return { code, strings };
+  return { code, strings, withoutComments };
 }
 
 /* Every http(s) origin appearing in a piece of text. */

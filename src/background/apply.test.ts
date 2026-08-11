@@ -141,6 +141,61 @@ describe('applyRules', () => {
       expect(outcome?.errors[0]).toContain('x-env');
     });
 
+    it('finds one bad rule among many without testing them all', async () => {
+      /* Recovery bisects rather than re-adding one rule at a time. With 64
+         rules that is ~14 engine calls instead of 64, every time anyone has a
+         typo. The assertion is on call count because that is the property --
+         both strategies find the rule; only one of them is cheap. */
+      const { apply, store, schema } = await freshModules();
+      const filters = Array.from({ length: 64 }, (_, i) => `/path-${i}`);
+      const profile = profileWith(schema, [{ name: 'X-Env', value: 'staging' }], filters);
+      await store.saveConfig(
+        schema.parseConfig({ ...schema.defaultConfig(), profiles: [profile], activeProfileId: profile.id }),
+      );
+
+      const real = fake.chrome.declarativeNetRequest.updateDynamicRules;
+      let addCalls = 0;
+      fake.chrome.declarativeNetRequest.updateDynamicRules = vi.fn(
+        async (options: { addRules?: { condition?: { urlFilter?: string } }[] }) => {
+          if (options.addRules?.length) addCalls++;
+          if (options.addRules?.some((r) => r.condition?.urlFilter === '/path-40')) {
+            throw new Error('rejected by the engine');
+          }
+          return real(options as never);
+        },
+      );
+
+      const outcome = await apply.applyRules();
+
+      expect(outcome?.errors).toHaveLength(1);
+      expect(fake.dynamicSnapshot()).toHaveLength(63);
+      // One failed batch, then a bisection of depth ~log2(64).
+      expect(addCalls).toBeLessThan(30);
+    });
+
+    it('gives up quickly when the failure is not any single rule', async () => {
+      /* A quota rejection fails every subdivision. Bisecting still terminates,
+         and does not spend 64 calls discovering that nothing works. */
+      const { apply, store, schema } = await freshModules();
+      const filters = Array.from({ length: 32 }, (_, i) => `/p-${i}`);
+      const profile = profileWith(schema, [{ name: 'X-Env', value: 'staging' }], filters);
+      await store.saveConfig(
+        schema.parseConfig({ ...schema.defaultConfig(), profiles: [profile], activeProfileId: profile.id }),
+      );
+
+      fake.chrome.declarativeNetRequest.updateDynamicRules = vi.fn(
+        async (options: { addRules?: unknown[] }) => {
+          if (options.addRules?.length) throw new Error('quota exceeded');
+        },
+      );
+
+      const outcome = await apply.applyRules();
+
+      // Every rule is reported, and the extension is still alive.
+      expect(outcome?.errors).toHaveLength(32);
+      expect(outcome?.errors[0]).toContain('quota exceeded');
+    });
+
     it('names the offending rule by profile and header', async () => {
       const { apply, store, schema } = await freshModules();
       const profile = profileWith(schema, [{ name: 'X-Env', value: 'staging' }]);

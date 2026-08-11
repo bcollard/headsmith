@@ -50,7 +50,12 @@ const BANNED = [
 
 /* An import that crosses out of src/core defeats the point even if this file
    itself is clean. Only sibling core modules and node: builtins are allowed;
-   in practice core imports nothing but zod and itself. */
+   in practice core imports nothing but zod and itself.
+
+   Matched against comment-stripped source, not raw source. Prose contains the
+   word "from" followed by a quoted phrase often enough that reading comments
+   here produces false failures -- and a guard that cries wolf is a guard people
+   learn to override. */
 const IMPORT_RE = /\bfrom\s+['"]([^'"]+)['"]/g;
 
 const files = walk(coreDir).filter((f) => ['.ts', '.tsx'].includes(extname(f)));
@@ -60,7 +65,7 @@ for (const file of files) {
   if (/\.(test|spec)\.tsx?$/.test(file)) continue;
 
   const source = read(file);
-  const { code } = scanJs(source);
+  const { code, withoutComments } = scanJs(source);
 
   for (const { re, what } of BANNED) {
     if (re.test(code)) failures.push(`${name}: reaches ${what}`);
@@ -68,7 +73,7 @@ for (const file of files) {
 
   let m;
   IMPORT_RE.lastIndex = 0;
-  while ((m = IMPORT_RE.exec(source)) !== null) {
+  while ((m = IMPORT_RE.exec(withoutComments)) !== null) {
     const spec = m[1];
     if (spec.startsWith('.')) {
       /* Resolve the specifier for real rather than pattern-matching the

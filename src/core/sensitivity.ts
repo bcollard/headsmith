@@ -1,106 +1,150 @@
-/* Which header values are credentials.
+/* Which header values are credentials, and why.
  *
- * Derived from OpenModHeader's chromium/security.js.
- * Copyright (c) 2026 Shiva M. MIT licensed.
- * https://github.com/Multivalence/OpenModHeader
+ * The rule that a user may add sensitivity but never remove it comes from
+ * OpenModHeader (MIT, (c) 2026 Shiva M). See NOTICE.md.
  *
- * The name list, the pattern list and the add-only sensitivity rule are
- * upstream's. See NOTICE.md.
+ * Pure name analysis. No storage, no crypto, no browser APIs, so the editor,
+ * the policy gate and the compiler can all ask the same question and cannot
+ * disagree about the answer.
  *
- * Pure name matching, no storage and no crypto, so it can be called from
- * anywhere -- the editor uses it to decide whether to offer the secret field,
- * the policy layer uses it to decide whether a profile needs a host
- * restriction, and the compiler uses it to route a rule to the session bucket.
- * One definition, three consumers, no chance of them disagreeing.
+ * Detection is a small ordered table of rules rather than a name list plus a
+ * pile of regular expressions, for one reason: **a match carries a reason.**
+ * A lock icon that appears without explanation looks like a bug to anyone who
+ * did not expect it, and the first thing they will try is turning it off. A
+ * rule that can say "this ends in -token, so it is treated as a credential"
+ * gets understood instead of fought.
  *
- * The flag on a header can only *add* sensitivity. A user can mark
- * `X-Correlation-Id` as a secret; a user cannot mark `Authorization` as not
- * one. Detection that could be switched off is not a safety property.
+ * The user's flag can only ever *add* sensitivity. Someone may mark
+ * `X-Tenant-Ref` as a credential; nobody may mark `Authorization` as not one.
+ * Detection that can be switched off is not a safety property.
  */
 
 import { APPENDABLE_REQUEST_HEADERS, type HeaderOp } from './schema';
 
-/* Exact names. Add a lowercase entry to teach the extension a new one --
-   nothing else in the codebase hardcodes a header name. */
-export const SENSITIVE_HEADER_NAMES = new Set([
-  'authorization',
-  'proxy-authorization',
-  'cookie',
-  'set-cookie',
-  'x-api-key',
-  'api-key',
-  'apikey',
-  'x-auth-token',
-  'x-access-token',
-  'x-amz-security-token',
-  'x-goog-api-key',
-]);
+export type SensitivityReason =
+  | 'http-authentication'
+  | 'cookie'
+  | 'api-key'
+  | 'token'
+  | 'secret-material'
+  | 'marked-by-user';
 
-/* Vendor-specific variants the exact list cannot enumerate: `X-Acme-Api-Key`,
-   `X-Tenant-Session-Token`, and so on. */
-export const SENSITIVE_HEADER_PATTERNS: readonly RegExp[] = [
-  /(^|-)api[-_]?key$/i,
-  /(^|-)auth(orization)?[-_]?token$/i,
-  /(^|-)access[-_]?token$/i,
-  /(^|-)session[-_]?token$/i,
-  /(^|-)refresh[-_]?token$/i,
-  /(^|-)id[-_]?token$/i,
-  /(^|-)bearer$/i,
-  /(^|-)secret$/i,
-  /(^|-)credentials?$/i,
-  /(^|-)password$/i,
-  /(^|-)signature$/i,
+/* Ordered. The first match wins, so the specific standard headers come before
+   the shape-based conventions -- `Proxy-Authorization` should be reported as
+   HTTP authentication, not as something that happens to end in a word.
+
+   The shape rules are anchored to a word boundary at the end of the name
+   because that is where the meaning lives: `X-Acme-Api-Key` is a key,
+   `X-Keyboard-Layout` is not, and only the anchor tells them apart. */
+interface Rule {
+  readonly reason: SensitivityReason;
+  readonly test: (name: string) => boolean;
+  readonly explain: string;
+}
+
+const exactly = (...names: string[]) => {
+  const set = new Set(names);
+  return (name: string) => set.has(name);
+};
+
+const endsWith = (pattern: RegExp) => (name: string) => pattern.test(name);
+
+const RULES: readonly Rule[] = [
+  {
+    reason: 'http-authentication',
+    // The headers RFC 9110 defines for carrying authentication.
+    test: exactly('authorization', 'proxy-authorization'),
+    explain: 'carries HTTP authentication credentials',
+  },
+  {
+    reason: 'cookie',
+    /* A cookie header is a bearer credential in almost every real deployment,
+       even when an individual cookie in it is not. It cannot be split, so the
+       whole header is treated as sensitive. */
+    test: exactly('cookie', 'set-cookie'),
+    explain: 'carries session cookies',
+  },
+  {
+    reason: 'api-key',
+    test: endsWith(/(^|[-_])api[-_]?key$/),
+    explain: 'names an API key',
+  },
+  {
+    reason: 'token',
+    test: endsWith(/(^|[-_])(token|jwt|bearer)$/),
+    explain: 'names a token',
+  },
+  {
+    reason: 'secret-material',
+    test: endsWith(/(^|[-_])(secret|password|passwd|credentials?|signature|sig)$/),
+    explain: 'names secret material',
+  },
 ];
 
+export function normaliseHeaderName(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+/* The reason a header name is treated as a credential, or null. Exported so
+   the editor can explain itself rather than only decorate. */
+export function sensitivityOf(name: string): { reason: SensitivityReason; explain: string } | null {
+  const key = normaliseHeaderName(name);
+  if (!key) return null;
+  for (const rule of RULES) {
+    if (rule.test(key)) return { reason: rule.reason, explain: rule.explain };
+  }
+  return null;
+}
+
 export function isSensitiveHeaderName(name: string): boolean {
-  const key = name.trim().toLowerCase();
-  if (!key) return false;
-  if (SENSITIVE_HEADER_NAMES.has(key)) return true;
-  return SENSITIVE_HEADER_PATTERNS.some((pattern) => pattern.test(key));
+  return sensitivityOf(name) !== null;
 }
 
 export function isSensitive(header: Pick<HeaderOp, 'name' | 'sensitive'>): boolean {
   return header.sensitive || isSensitiveHeaderName(header.name);
 }
 
-/* A `remove` carries no value, so it cannot leak one -- removing
-   `Authorization` is a perfectly ordinary thing to want and should not drag a
-   profile into needing an unlocked vault. This is the distinction between
-   "this header name is sensitive" and "this operation handles a credential". */
-export function carriesCredential(header: HeaderOp): boolean {
-  if (header.operation === 'remove') return false;
-  return isSensitive(header);
+export function explainSensitivity(header: Pick<HeaderOp, 'name' | 'sensitive'>): string | null {
+  const detected = sensitivityOf(header.name);
+  if (detected) return `Treated as a credential because the name ${detected.explain}.`;
+  if (header.sensitive) return 'Treated as a credential because you marked it as one.';
+  return null;
 }
 
-export function sensitiveHeadersOf(profile: {
-  requestHeaders: HeaderOp[];
-  responseHeaders: HeaderOp[];
-}): HeaderOp[] {
+/* Whether an operation actually handles a credential value.
+ *
+ * Distinct from "is this header name sensitive", and the distinction matters:
+ * removing `Authorization` involves no secret at all. Treating it as
+ * credential-bearing would demand an unlocked vault and a host restriction to
+ * do something that only ever *deletes* a value. */
+export function carriesCredential(header: HeaderOp): boolean {
+  return header.operation !== 'remove' && isSensitive(header);
+}
+
+type HeaderLists = { requestHeaders: HeaderOp[]; responseHeaders: HeaderOp[] };
+
+export function sensitiveHeadersOf(profile: HeaderLists): HeaderOp[] {
   return [...profile.requestHeaders, ...profile.responseHeaders].filter(carriesCredential);
 }
 
-export function hasSensitiveContent(profile: {
-  requestHeaders: HeaderOp[];
-  responseHeaders: HeaderOp[];
-}): boolean {
+export function hasSensitiveContent(profile: HeaderLists): boolean {
   return sensitiveHeadersOf(profile).some((h) => h.enabled && h.name.trim().length > 0);
 }
 
 // ---------------------------------------------------------------------------
-// Operation validity
+// Whether Chrome will accept the operation at all
 // ---------------------------------------------------------------------------
 
 export type OperationProblem =
-  | { kind: 'append-not-allowed'; header: string }
   | { kind: 'empty-name' }
-  | { kind: 'invalid-name'; header: string };
+  | { kind: 'invalid-name'; header: string }
+  | { kind: 'append-not-allowed'; header: string };
 
-/* Chrome validates header names and the append restriction when a rule is
-   submitted, and rejects the *entire batch* on one bad rule. Catching it here
-   means a typo costs the user an inline warning rather than every rule in the
-   profile silently failing to apply.
-   Field names per RFC 9110: one or more token characters. */
-const TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+/* RFC 9110 field names are one or more token characters. Chrome validates
+   this when the rule is submitted and rejects the *whole batch* on failure,
+   so a typo caught here costs an inline warning instead of every other rule
+   in the profile silently ceasing to apply. */
+const FIELD_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
 export function checkOperation(
   header: HeaderOp,
@@ -108,15 +152,19 @@ export function checkOperation(
 ): OperationProblem | null {
   const name = header.name.trim();
   if (!name) return { kind: 'empty-name' };
-  if (!TOKEN.test(name)) return { kind: 'invalid-name', header: name };
+  if (!FIELD_NAME.test(name)) return { kind: 'invalid-name', header: name };
+
+  /* Chrome permits `append` on only a fixed set of request headers -- the ones
+     whose grammar is a comma-separated list, where appending is meaningful.
+     Response headers have no such restriction. */
   if (
     header.operation === 'append' &&
     target === 'request' &&
     !APPENDABLE_REQUEST_HEADERS.has(name.toLowerCase())
   ) {
-    // Response headers have no such restriction; this is request-only.
     return { kind: 'append-not-allowed', header: name };
   }
+
   return null;
 }
 
