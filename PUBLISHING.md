@@ -59,7 +59,7 @@ release page**.
 Sanity-check it before uploading:
 
 ```bash
-gh attestation verify headsmith-1.0.0.zip --repo <owner>/headsmith
+gh attestation verify headsmith-1.0.0.zip --repo bcollard/headsmith
 node scripts/verify-reproducible.mjs headsmith-1.0.0.zip
 ```
 

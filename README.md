@@ -31,7 +31,7 @@ You do not have to trust that the extension in the Web Store was built from
 this source. You can check.
 
 ```bash
-git clone https://github.com/<owner>/headsmith.git && cd headsmith
+git clone https://github.com/bcollard/headsmith.git && cd headsmith
 git checkout v1.0.0        # the tag you want to verify
 nvm use                    # matches .nvmrc — the Node version affects the output
 npm ci
@@ -45,7 +45,7 @@ produce byte-identical archives, on any machine, in any directory.
 And to confirm the artifact came from this repository:
 
 ```bash
-gh attestation verify headsmith-1.0.0.zip --repo <owner>/headsmith
+gh attestation verify headsmith-1.0.0.zip --repo bcollard/headsmith
 ```
 
 The shipped bundle is **deliberately not minified**. Publishing with provenance
