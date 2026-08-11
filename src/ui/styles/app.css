@@ -1,0 +1,602 @@
+/* Application layout. Tokens and the reset live in base.css.
+   No @font-face, no @import, no url() pointing off this extension. */
+
+.hs-app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* The action popup gets a fixed size. Chrome sizes the popup to its content,
+   so an unconstrained layout produces a window that resizes as you type. */
+.hs-app.hs-popup {
+  width: 420px;
+  min-height: auto;
+  max-height: 580px;
+  overflow-y: auto;
+}
+
+/* ---- top bar ---- */
+
+.hs-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--hs-border);
+  background: var(--hs-surface);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.hs-brand {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  margin-right: auto;
+}
+
+/* ---- layout ---- */
+
+.hs-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.hs-popup .hs-body {
+  flex-direction: column;
+}
+
+.hs-main {
+  flex: 1;
+  min-width: 0;
+  padding: 14px;
+}
+
+.hs-main h3 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--hs-text-dim);
+  margin: 18px 0 8px;
+}
+
+.hs-main h3:first-of-type {
+  margin-top: 8px;
+}
+
+/* ---- profiles ---- */
+
+.hs-profiles {
+  width: 200px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--hs-border);
+  padding: 10px 8px;
+}
+
+.hs-popup .hs-profiles {
+  width: auto;
+  border-right: none;
+  border-bottom: 1px solid var(--hs-border);
+}
+
+.hs-profiles ul {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+.hs-profile {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 6px;
+}
+
+.hs-profile.hs-active {
+  background: color-mix(in srgb, var(--hs-forge) 12%, transparent);
+}
+
+.hs-profile-open {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 8px;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.hs-profile-open:hover {
+  background: color-mix(in srgb, var(--hs-text) 6%, transparent);
+}
+
+.hs-profile-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hs-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.hs-badge {
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.hs-badge-warn {
+  color: #fff;
+  background: #b4470e;
+  border-radius: 50%;
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+}
+
+.hs-profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.hs-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hs-title-input {
+  font-size: 15px;
+  font-weight: 600;
+  flex: 1;
+  min-width: 140px;
+}
+
+.hs-colors {
+  display: flex;
+  gap: 4px;
+}
+
+.hs-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.hs-color-on {
+  border-color: var(--hs-text);
+}
+
+/* ---- tabs ---- */
+
+.hs-tabs {
+  display: flex;
+  gap: 2px;
+  margin: 14px 0 4px;
+  border-bottom: 1px solid var(--hs-border);
+}
+
+.hs-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 7px 12px;
+  font: inherit;
+  color: var(--hs-text-dim);
+  cursor: pointer;
+  text-transform: capitalize;
+}
+
+.hs-tab-on {
+  color: var(--hs-text);
+  border-bottom-color: var(--hs-forge);
+  font-weight: 600;
+}
+
+/* ---- header rows ---- */
+
+.hs-header-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hs-header-row {
+  display: grid;
+  grid-template-columns: auto auto 84px minmax(120px, 1fr) minmax(140px, 1.4fr) auto auto;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 6px;
+}
+
+/* At popup width there is no room for a seven-column row, so the name and
+   value each get a full line and the controls share the first. The cells are
+   placed by name -- an earlier version declared these areas without ever
+   assigning them, so every child auto-placed into the wrong slot. */
+.hs-popup .hs-header-row {
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    'grip enabled op lock remove'
+    'name name name name name'
+    'value value value value value';
+  row-gap: 5px;
+  padding: 8px 6px;
+  border: 1px solid var(--hs-border);
+}
+
+.hs-popup .hs-cell-grip { grid-area: grip; }
+.hs-popup .hs-cell-enabled { grid-area: enabled; }
+.hs-popup .hs-cell-op { grid-area: op; justify-self: start; }
+.hs-popup .hs-cell-name { grid-area: name; }
+.hs-popup .hs-cell-value { grid-area: value; }
+.hs-popup .hs-cell-lock { grid-area: lock; }
+.hs-popup .hs-cell-remove { grid-area: remove; }
+
+.hs-header-row:hover {
+  background: color-mix(in srgb, var(--hs-text) 4%, transparent);
+}
+
+.hs-header-row.hs-dragging {
+  opacity: 0.4;
+}
+
+.hs-grip {
+  cursor: grab;
+  color: var(--hs-text-dim);
+  user-select: none;
+}
+
+.hs-removed-note {
+  color: var(--hs-text-dim);
+  font-style: italic;
+  font-size: 12px;
+}
+
+.hs-row-problem {
+  grid-column: 1 / -1;
+  margin: 2px 0 0 28px;
+  font-size: 12px;
+  color: #b4470e;
+}
+
+/* ---- secret field ---- */
+
+.hs-secret {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.hs-secret .hs-input {
+  min-width: 0;
+  flex: 1;
+}
+
+.hs-secret-value {
+  font-family: var(--hs-mono);
+  font-size: 12px;
+  padding: 4px 6px;
+  background: color-mix(in srgb, var(--hs-text) 7%, transparent);
+  border-radius: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.hs-secret-locked {
+  color: var(--hs-text-dim);
+  font-style: italic;
+  font-size: 12px;
+}
+
+/* ---- controls ---- */
+
+.hs-input {
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 7px;
+  border: 1px solid var(--hs-border);
+  border-radius: 5px;
+  background: var(--hs-surface);
+  color: var(--hs-text);
+  min-width: 0;
+  width: 100%;
+}
+
+.hs-input:focus-visible {
+  outline: 2px solid var(--hs-forge);
+  outline-offset: -1px;
+}
+
+.hs-textarea {
+  font-family: var(--hs-mono);
+  font-size: 12px;
+  resize: vertical;
+}
+
+.hs-select {
+  width: auto;
+}
+
+.hs-btn {
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--hs-border);
+  background: var(--hs-surface);
+  color: var(--hs-text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.hs-btn:hover:not(:disabled) {
+  border-color: var(--hs-text-dim);
+}
+
+.hs-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.hs-btn-primary {
+  background: var(--hs-forge);
+  border-color: var(--hs-forge);
+  color: #fff;
+}
+
+.hs-btn-danger {
+  color: #b4470e;
+}
+
+.hs-btn-ghost {
+  border-color: transparent;
+  background: none;
+  padding: 4px 6px;
+}
+
+.hs-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.hs-toggle label {
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+}
+
+.hs-field {
+  display: block;
+  margin: 12px 0;
+}
+
+.hs-field-label {
+  display: block;
+  font-weight: 600;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.hs-field-error {
+  display: block;
+  font-size: 12px;
+  color: #b4470e;
+  margin-top: 3px;
+}
+
+.hs-hint {
+  display: block;
+  font-size: 11.5px;
+  color: var(--hs-text-dim);
+  line-height: 1.45;
+  margin-top: 3px;
+}
+
+.hs-empty {
+  color: var(--hs-text-dim);
+  font-style: italic;
+  margin: 6px 0;
+}
+
+.hs-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+
+/* ---- callouts ---- */
+
+.hs-callout {
+  border-left: 3px solid;
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin: 10px 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.hs-callout strong {
+  display: block;
+  margin-bottom: 3px;
+}
+
+.hs-callout ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.hs-callout code {
+  font-family: var(--hs-mono);
+  font-size: 11.5px;
+  word-break: break-word;
+}
+
+.hs-callout-info {
+  border-color: #0369a1;
+  background: color-mix(in srgb, #0369a1 8%, transparent);
+}
+
+.hs-callout-warn {
+  border-color: #8a6212;
+  background: color-mix(in srgb, #8a6212 10%, transparent);
+}
+
+.hs-callout-danger {
+  border-color: #a81e1e;
+  background: color-mix(in srgb, #a81e1e 8%, transparent);
+}
+
+/* ---- status ---- */
+
+.hs-status {
+  padding: 0 14px;
+}
+
+.hs-status-line {
+  font-size: 12px;
+  color: var(--hs-text-dim);
+  margin: 8px 0;
+}
+
+.hs-status-tight {
+  color: #8a6212;
+}
+
+.hs-status-pending {
+  font-style: italic;
+}
+
+/* ---- panels ---- */
+
+.hs-panel h2 {
+  font-size: 14px;
+  margin: 16px 0 8px;
+}
+
+.hs-panel hr {
+  border: none;
+  border-top: 1px solid var(--hs-border);
+  margin: 20px 0;
+}
+
+.hs-modes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.hs-mode {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--hs-border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.hs-mode-on {
+  border-color: var(--hs-forge);
+  background: color-mix(in srgb, var(--hs-forge) 7%, transparent);
+}
+
+.hs-unlock {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 8px 0;
+}
+
+.hs-checkgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 2px 10px;
+}
+
+.hs-checkgrid label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.hs-resource-types {
+  border: 1px solid var(--hs-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 12px 0;
+}
+
+.hs-resource-types legend {
+  font-weight: 600;
+  font-size: 12px;
+  padding: 0 4px;
+}
+
+.hs-cost {
+  font-size: 12px;
+  color: var(--hs-text-dim);
+  margin: 8px 0 0;
+}
+
+.hs-popup-note {
+  margin-top: 14px;
+}
+
+.hs-footer {
+  padding: 0 14px 10px;
+}
+
+.hs-loading {
+  padding: 24px;
+  color: var(--hs-text-dim);
+}
+
+.hs-vault-create,
+.hs-vault-state,
+.hs-rotate {
+  border: 1px solid var(--hs-border);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 10px 0;
+}
+
+.hs-vault-create h3,
+.hs-vault-state h3 {
+  margin-top: 0;
+}
+
+.hs-field-label-row {
+  display: block;
+}
