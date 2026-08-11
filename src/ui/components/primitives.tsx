@@ -144,11 +144,18 @@ export function ListInput({
   onChange,
   placeholder,
   rows = 3,
+  /* Field injects these by cloning, so they have to reach the textarea itself
+     -- a label whose htmlFor names an id nothing carries associates nothing at
+     all, which is worse than the nesting it replaced. */
+  id,
+  'aria-describedby': describedBy,
 }: {
   value: string[];
   onChange: (next: string[]) => void;
   placeholder?: string;
   rows?: number;
+  id?: string;
+  'aria-describedby'?: string;
 }) {
   const [draft, setDraft] = useState(() => value.join('\n'));
   const [published, setPublished] = useState<string[]>(value);
@@ -164,6 +171,8 @@ export function ListInput({
   return (
     <textarea
       className="hs-input hs-textarea"
+      id={id}
+      aria-describedby={describedBy}
       rows={rows}
       value={draft}
       placeholder={placeholder}
