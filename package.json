@@ -12,7 +12,7 @@
     "postinstall": "wxt prepare",
     "dev": "wxt",
     "build": "wxt build",
-    "zip": "wxt zip",
+    "zip": "node scripts/pack.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
@@ -26,7 +26,9 @@
     "guard:core": "node scripts/guard-core-purity.mjs",
     "guard:egress": "node scripts/guard-egress.mjs",
     "guard:manifest": "node scripts/guard-manifest.mjs",
-    "guard:refs": "node scripts/guard-manifest-refs.mjs"
+    "guard:refs": "node scripts/guard-manifest-refs.mjs",
+    "verify": "node scripts/verify-reproducible.mjs",
+    "sbom": "cyclonedx-npm --output-format JSON --output-file build/headsmith-sbom.cdx.json --omit dev"
   },
   "dependencies": {
     "react": "^19.2.0",
@@ -34,6 +36,7 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@cyclonedx/cyclonedx-npm": "^6.0.0",
     "@eslint/js": "^9.39.0",
     "@playwright/test": "^1.56.0",
     "@types/chrome": "^0.1.24",

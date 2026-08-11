@@ -12,3 +12,5 @@ test-results/
 # Never commit a self-distribution signing key.
 *.pem
 *.crx
+
+build/

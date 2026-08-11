@@ -1,0 +1,146 @@
+name: Release
+
+# Publishes the exact .zip that gets uploaded to the Chrome Web Store, with a
+# build provenance attestation binding it to this commit and this workflow.
+#
+# The gap being closed: the Web Store signs the .crx itself from an uploaded
+# .zip. The developer never signs anything, and nothing links the published
+# bytes to a commit -- so "the source is on GitHub" is an assertion rather than
+# something a user can check. Both reference extensions leave it open.
+#
+# Three things make it checkable here:
+#   1. the build is reproducible, so anyone can rebuild and compare;
+#   2. the artifact is attested, so its origin is cryptographically verifiable;
+#   3. the bundle is not minified, so a reviewer can actually read it.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build (must already exist)'
+        required: true
+
+permissions: {}
+
+jobs:
+  release:
+    name: Build, attest and publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release
+      id-token: write # sign the provenance attestation
+      attestations: write # record it
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          persist-credentials: false
+
+      # The Node version is part of the reproducibility contract: zlib is
+      # bundled with Node, and deflate output is what the archive's bytes
+      # ultimately depend on. Pinned in .nvmrc and recorded in the release
+      # notes so a third party can match it.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install from the lockfile
+        run: npm ci
+
+      # A release must not be the first time the gates run, but running them
+      # here too means a tag can never be published from a state that would
+      # have failed CI.
+      - name: Verify
+        run: |
+          npm run typecheck
+          npm run lint
+          npm run test:coverage
+          npm run icons -- --check
+
+      - name: Build
+        run: npm run build
+
+      - name: Invariant guards
+        run: npm run guard
+
+      - name: Package
+        id: pack
+        run: node scripts/pack.mjs
+
+      # Proves the property the README asks readers to rely on, at the moment
+      # the artifact is created rather than as a claim about it.
+      - name: Confirm the build reproduces
+        run: node scripts/verify-reproducible.mjs --self
+
+      # Run from the lockfile-pinned devDependency rather than `npx --yes`,
+      # which would resolve whatever version happened to be latest at release
+      # time -- an unpinned fetch in the step that produces the artifact users
+      # install is exactly the supply-chain shape this project is trying not to
+      # have.
+      - name: Generate SBOM
+        run: |
+          npm run sbom
+          node -e "const s=require('./build/headsmith-sbom.cdx.json');console.log('runtime components:',(s.components||[]).length)"
+
+      - name: Checksums
+        working-directory: build
+        run: sha256sum *.zip *.json > SHA256SUMS
+
+      # Binds the artifact to this repository, this commit and this workflow
+      # run. Verifiable afterwards with:
+      #   gh attestation verify <zip> --repo <owner>/<repo>
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ${{ steps.pack.outputs.zip_path }}
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+          SHA256: ${{ steps.pack.outputs.sha256 }}
+        run: |
+          # `gh release` rather than a third-party action: one fewer dependency
+          # in the step that produces the thing users install.
+          {
+            echo "## Verify this build yourself"
+            echo
+            echo "This artifact is reproducible. You do not have to trust that it was built"
+            echo "from the source in this repository -- you can check."
+            echo
+            echo '```bash'
+            echo "git clone https://github.com/${GITHUB_REPOSITORY}.git && cd \$(basename ${GITHUB_REPOSITORY})"
+            echo "git checkout ${TAG}"
+            echo "nvm use          # matches .nvmrc; the Node version affects the output"
+            echo "npm ci"
+            echo "node scripts/verify-reproducible.mjs headsmith-*.zip"
+            echo '```'
+            echo
+            echo "And to confirm where it came from:"
+            echo
+            echo '```bash'
+            echo "gh attestation verify headsmith-*.zip --repo ${GITHUB_REPOSITORY}"
+            echo '```'
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| SHA-256 | \`${SHA256}\` |"
+            echo "| Built with | Node \`$(node --version)\` |"
+            echo "| Commit | \`${GITHUB_SHA}\` |"
+            echo
+            echo "The bundle is deliberately not minified, so the shipped JavaScript can be"
+            echo "read and diffed against the source."
+          } > release-notes.md
+
+          gh release create "${TAG}" \
+            --title "Headsmith ${TAG}" \
+            --notes-file release-notes.md \
+            build/*.zip build/headsmith-sbom.cdx.json build/SHA256SUMS
