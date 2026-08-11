@@ -12,13 +12,14 @@
 
   "namespaceUris": {
     "$comment": [
-      "XML namespace URIs are identifiers, not locations. The browser passes them to",
-      "createElementNS to disambiguate element names and never dereferences them --",
-      "http://www.w3.org/2000/svg has never been fetched by any browser rendering an",
-      "<svg>. They are matched as exact prefixes rather than by host on purpose: an",
-      "allowlist entry for the host www.w3.org would also silently permit a genuine",
-      "<script src=\"https://www.w3.org/...\">, which is the thing this guard exists",
-      "to catch."
+      "Identifier URIs, not locations. Nothing dereferences these -- no browser has",
+      "ever fetched http://www.w3.org/2000/svg while rendering an <svg>, and no JSON",
+      "Schema validator fetches its own $schema value.",
+      "",
+      "Matched as exact prefixes rather than by host, on purpose. An allowlist entry",
+      "for the host www.w3.org would also silently permit a genuine",
+      "<script src=\"https://www.w3.org/...\">, which is precisely the thing this",
+      "guard exists to catch. The prefix form exempts the identifier and nothing else."
     ],
     "prefixes": [
       "http://www.w3.org/2000/svg",
@@ -26,7 +27,11 @@
       "http://www.w3.org/1999/xlink",
       "http://www.w3.org/1998/Math/MathML",
       "http://www.w3.org/XML/1998/namespace",
-      "http://www.w3.org/2000/xmlns/"
+      "http://www.w3.org/2000/xmlns/",
+
+      "https://json-schema.org/draft/2020-12/schema",
+      "http://json-schema.org/draft-07/schema#",
+      "http://json-schema.org/draft-04/schema#"
     ]
   },
 
