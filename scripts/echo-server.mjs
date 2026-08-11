@@ -61,17 +61,19 @@ const server = createServer((req, res) => {
   const row = ([name, value]) =>
     `<tr><td><code>${escape(name)}</code></td><td><code>${escape(value)}</code></td></tr>`;
 
-  /* Built here rather than inline in the template so the suppression can sit
-     on the line the decision was made about. Every cell goes through `escape`,
-     which covers & < > " ' -- and the values are request headers, exactly the
-     attacker-controllable input the rule is about, so the rule is asking a
-     fair question. It simply cannot see through the helper.
-     nosemgrep: javascript.express.security.injection.raw-html-format */
-  const injectedTable = injected.length
-    ? `<table>${injected.map(row).join('')}</table>`
-    : '<p class="none">None — nothing has been injected on this request.</p>';
-  // nosemgrep: javascript.express.security.injection.raw-html-format
-  const restTable = `<table>${rest.map(row).join('')}</table>`;
+  /* The two tables are built here, on single lines, so the suppression below
+     sits on exactly the expression it excuses rather than over a whole file.
+
+     Semgrep flags these as user data flowing into manually-constructed HTML,
+     and it is asking a fair question: the values are request headers, which is
+     precisely the attacker-controllable input the rule exists for. Every cell
+     goes through `escape`, which covers & < > " ' -- the rule cannot see
+     through the helper. Verified rather than asserted: a request carrying
+     `X-Probe: <script>alert(1)</script>` renders as escaped text, never as
+     markup. */
+  const none = '<p class="none">None — nothing has been injected on this request.</p>';
+  const injectedTable = injected.length ? `<table>${injected.map(row).join('')}</table>` : none; // nosemgrep: javascript.express.security.injection.raw-html-format
+  const restTable = `<table>${rest.map(row).join('')}</table>`; // nosemgrep: javascript.express.security.injection.raw-html-format
 
   res.writeHead(200, {
     'content-type': 'text/html; charset=utf-8',
