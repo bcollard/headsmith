@@ -165,14 +165,20 @@ export function App() {
                   honest answer is that the obvious way to check does not
                   work. */}
               {profile.responseHeaders.length > 0 ? (
-                <p className="hs-hint hs-devtools-note">
-                  DevTools may not show these. Its Network panel reports response headers as
-                  they arrived from the server, before extensions modify them, so a header set
-                  here can be applied and still be absent from that list. To confirm one is
-                  working, set <code>Content-Type</code> to <code>text/plain</code> on a JSON
-                  page — if the page stops rendering as formatted JSON, response headers are
-                  being applied.
-                </p>
+                <div className="hs-hint hs-devtools-note">
+                  <strong>DevTools will not show these.</strong> Its Network panel reports
+                  response headers as they arrived from the server, before extensions modify
+                  them, so a header set here can be working and still be absent from that
+                  list.
+                  <br />
+                  To check one, open the console <em>on the page itself</em> and run:
+                  <code className="hs-snippet">
+                    (await fetch(location.href)).headers.get(&apos;Header-Name&apos;)
+                  </code>
+                  That request is same-origin, so every response header is visible to it —
+                  unlike a cross-origin one, where the browser hides anything non-standard from
+                  scripts whether or not it arrived.
+                </div>
               ) : null}
 
               {popup ? (

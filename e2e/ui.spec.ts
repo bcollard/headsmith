@@ -387,3 +387,42 @@ test('a response header really is applied, proved by observable effect', async (
     server.kill();
   }
 });
+
+test('the documented way to check a response header actually works', async () => {
+  /* The UI tells people to run
+       (await fetch(location.href)).headers.get('Name')
+     in the page console. Advice in a product is a promise, so it is tested
+     like one -- and the same-origin part is load-bearing: the cross-origin
+     version returns null whether or not the header arrived. */
+  const server = spawn('node', ['scripts/echo-server.mjs'], { cwd: process.cwd(), stdio: 'ignore' });
+  await new Promise((resolve) => setTimeout(resolve, 800));
+
+  try {
+    const page = await openEditor();
+    await resetConfig(page);
+    await page.reload();
+
+    await page.getByRole('button', { name: 'Add response header' }).click();
+    await page.getByLabel('Header name').last().fill('X-Verify-Me');
+    await page.getByLabel('Header value').last().fill('present');
+    await page.getByRole('tab', { name: 'scope' }).click();
+    await page.getByLabel('Domains', { exact: true }).fill('localhost');
+
+    await expect
+      .poll(async () => JSON.stringify((await liveRules()).dynamic), { timeout: 5000 })
+      .toContain('x-verify-me');
+
+    const target = await context.newPage();
+    await target.goto('http://localhost:8787/headers.json', { waitUntil: 'load' });
+
+    const value = await target.evaluate(
+      async () => (await fetch(location.href, { cache: 'no-store' })).headers.get('X-Verify-Me'),
+    );
+    expect(value).toBe('present');
+
+    await target.close();
+    await page.close();
+  } finally {
+    server.kill();
+  }
+});

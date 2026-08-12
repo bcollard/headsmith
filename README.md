@@ -192,14 +192,29 @@ wrong.
 page. CORS exposes only a safelisted set of response headers to JavaScript, so
 a custom one reads as `null` whether or not it arrived.
 
-To actually confirm a response header is working, use one with a visible
-effect. Set `Content-Type` to `text/plain` on a page that returns JSON: if it
-stops rendering as formatted JSON and becomes raw text, response headers are
-being applied. Chrome had to have read the modified header to parse it that
-way.
+**What does work:** open the console *on the page itself* and ask for the page
+again.
 
-The local echo server is the other way — it shows you what the server received
-and lets you fetch the page back same-origin, where CORS does not apply.
+```js
+(await fetch(location.href)).headers.get('Your-Header')
+```
+
+That request is same-origin, so the browser exposes every response header to
+it, and you get the real value back. The earlier caveat is precisely about
+*cross-origin* requests; this is not one.
+
+One wrinkle: that is a new request, of type `xmlhttprequest`. If you have
+restricted a profile to `main_frame` under Request types, the check will not
+match even though the page load does. With Request types left unticked — the
+default — it is representative.
+
+If you cannot run script on the page, use a header with a visible effect
+instead. Setting `Content-Type` to `text/plain` on a JSON endpoint makes the
+page render as raw text; Chrome had to have read the modified header to parse
+it that way.
+
+The local echo server covers the same ground for anything you can point at
+localhost.
 
 ## Development
 

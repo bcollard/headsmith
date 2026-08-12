@@ -267,9 +267,22 @@ In order of how often it turns out to be the cause:
      non-safelisted response header, present or not, because CORS does not
      expose it to script.
 
-   The reliable check is a header with an observable effect -- `Content-Type`
-   is the good one, since Chrome must have read the modified value to parse the
-   body the way it did.
+   What does work, and is what the UI now tells people, is asking the page for
+   itself from its own console:
+
+       (await fetch(location.href)).headers.get('Name')
+
+   Same-origin, so every response header is exposed. Note the request is an
+   `xmlhttprequest`, so it will not match a profile restricted to `main_frame`.
+
+   Where script cannot be run, a header with an observable effect works
+   instead -- `Content-Type` is the good one, since Chrome must have read the
+   modified value to parse the body the way it did.
+
+   Worth noting why the extension cannot simply check this for the user: doing
+   so would mean issuing a request, and Headsmith makes none at all. The
+   no-egress invariant costs a genuinely useful feature here, and that is the
+   right trade, but it is a real cost rather than a free one.
 
    Both of these produced convincing false negatives during a real
    investigation, one of them mine. The UI carries a note about it under the

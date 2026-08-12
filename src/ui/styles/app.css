@@ -669,3 +669,16 @@
   padding: 1px 4px;
   border-radius: 3px;
 }
+
+.hs-snippet {
+  display: block;
+  margin: 6px 0;
+  padding: 6px 8px;
+  font-family: var(--hs-mono);
+  font-size: 11px;
+  background: color-mix(in srgb, var(--hs-text) 8%, transparent);
+  border-radius: 4px;
+  user-select: all;
+  overflow-x: auto;
+  white-space: pre;
+}
