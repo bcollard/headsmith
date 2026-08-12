@@ -161,6 +161,14 @@ jobs:
           name: extension-dist
           path: dist/
 
+      # Host access is optional and requested from a user gesture, which a test
+      # cannot supply, so the tests that need a rule to actually apply run
+      # against a build that declares localhost outright. `pretest:e2e` makes
+      # it locally; here the suite is invoked directly against the downloaded
+      # artifact, so it has to be made explicitly.
+      - name: Build the granted-host variant
+        run: node scripts/make-granted-build.mjs
+
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
