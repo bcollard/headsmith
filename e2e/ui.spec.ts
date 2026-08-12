@@ -305,14 +305,19 @@ test('dragging to select text in a header field does not move the row', async ()
   await expect(page.getByLabel('Header name').first()).toHaveValue('X-First');
   await expect(page.getByLabel('Header name').nth(1)).toHaveValue('X-Second');
 
-  // ...and the field really did select text rather than start a drag.
-  const selected = await page.evaluate(() => {
+  /* ...and the press went to the field rather than starting a row drag.
+     Focus rather than selection length: a synthetic drag does not reliably
+     produce a text selection under a virtual display, so asserting on the
+     selection made this pass locally and fail in CI for a reason that had
+     nothing to do with the behaviour. Focus distinguishes the two outcomes
+     just as well -- a row drag would not leave the caret in the input -- and
+     is stable everywhere. */
+  const focused = await page.evaluate(() => {
     const el = document.activeElement as HTMLInputElement | null;
-    return el && 'selectionStart' in el
-      ? el.value.slice(el.selectionStart ?? 0, el.selectionEnd ?? 0)
-      : '';
+    return { tag: el?.tagName ?? '', value: el?.value ?? '' };
   });
-  expect(selected.length).toBeGreaterThan(0);
+  expect(focused.tag).toBe('INPUT');
+  expect(focused.value).toBe('X-First');
 
   await page.close();
 });
@@ -396,7 +401,15 @@ test('a response header really is applied, proved by observable effect', async (
       await page.getByLabel('Header value').last().fill('text/plain');
       await page.getByRole('tab', { name: 'scope' }).click();
       await page.getByLabel('Domains', { exact: true }).fill('localhost');
-      await page.waitForTimeout(1300);
+
+      /* Poll for the rule rather than sleeping. A fixed wait was long enough
+         locally and not on a slower runner, which fails as though the feature
+         were broken. */
+      const [worker] = ctx.serviceWorkers();
+      await expect
+        .poll(async () => JSON.stringify(await worker!.evaluate(() =>
+          chrome.declarativeNetRequest.getDynamicRules())), { timeout: 10_000 })
+        .toContain('content-type');
 
       const target = await ctx.newPage();
       await target.goto('http://localhost:8787/headers.json', { waitUntil: 'load' });
@@ -430,7 +443,12 @@ test('the documented way to check a response header actually works', async () =>
       await page.getByLabel('Header value').last().fill('present');
       await page.getByRole('tab', { name: 'scope' }).click();
       await page.getByLabel('Domains', { exact: true }).fill('localhost');
-      await page.waitForTimeout(1300);
+
+      const [worker] = ctx.serviceWorkers();
+      await expect
+        .poll(async () => JSON.stringify(await worker!.evaluate(() =>
+          chrome.declarativeNetRequest.getDynamicRules())), { timeout: 10_000 })
+        .toContain('x-verify-me');
 
       const target = await ctx.newPage();
       await target.goto('http://localhost:8787/headers.json', { waitUntil: 'load' });
