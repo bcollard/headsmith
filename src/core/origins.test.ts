@@ -124,7 +124,7 @@ describe('originsForConfig', () => {
         profile({ id: 'p2', match: match({ domains: ['b.com'] }) }),
       ],
     });
-    expect(originsForConfig(config).origins.sort()).toEqual([
+    expect([...originsForConfig(config).origins].sort()).toEqual([
       '*://*.a.com/*',
       '*://*.b.com/*',
     ]);
