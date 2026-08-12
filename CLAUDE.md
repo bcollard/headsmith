@@ -245,6 +245,25 @@ This matters when reading the security code: a flaw in the original is very
 likely a flaw here. An advisory against OpenModHeader's credential handling
 should be treated as applying here until checked.
 
+## Diagnosing "my rule is not firing"
+
+In order of how often it turns out to be the cause:
+
+1. **The Domains value is not a hostname.** `*.example.com`,
+   `https://example.com`, `example.com:8080` and a bare `*` are all accepted by
+   Chrome and then match nothing. `src/core/domains.ts` flags these in the
+   editor; if someone is on an older build, they will not see the warning.
+2. **A stale unpacked build.** Chrome does not reload `dist/` on its own. The
+   reload button on the extension card is required after every rebuild.
+3. **The response was cached.** No network response, no rule application.
+4. **Checking a response header with `fetch().headers` cross-origin.** CORS
+   exposes only safelisted response headers to script, so it reports `null`
+   whether or not the header arrived. DevTools' Network panel is unaffected.
+   This produced a false negative during an investigation once already.
+
+Response-header modification does work and *is* visible to DevTools; that was
+verified through CDP, which is the same source the Network panel reads.
+
 ## Traps hit while building this
 
 Recorded so they are not hit twice.

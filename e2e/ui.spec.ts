@@ -313,3 +313,38 @@ test('the profile name field is labelled', async () => {
   await expect(page.getByLabel('Profile', { exact: true })).toHaveCount(1);
   await page.close();
 });
+
+test('a response header reaches the browser and is visible to DevTools', async () => {
+  /* Reported as "I add a response header and cannot see it in DevTools".
+     It works -- but nothing covered it, so there was no way to say so without
+     going and checking. Read through CDP, which is the same source the Network
+     panel uses, so this asserts what a user would actually look at.
+
+     Deliberately not read with fetch().headers: CORS hides non-safelisted
+     response headers from script on a cross-origin response whether or not
+     they are present, which produces a convincing false negative. */
+  const page = await openEditor();
+  await resetConfig(page);
+  await page.reload();
+
+  await page.getByRole('button', { name: 'Add response header' }).click();
+  await page.getByLabel('Header name').last().fill('X-Response-Probe');
+  await page.getByLabel('Header value').last().fill('delivered');
+  await page.getByRole('tab', { name: 'scope' }).click();
+  await page.getByLabel('Domains', { exact: true }).fill('localhost');
+
+  await expect
+    .poll(async () => JSON.stringify((await liveRules()).dynamic), { timeout: 5000 })
+    .toContain('x-response-probe');
+
+  const rule = (await liveRules()).dynamic[0] as {
+    action: { responseHeaders?: { header: string; operation: string; value: string }[] };
+  };
+  expect(rule.action.responseHeaders?.[0]).toEqual({
+    header: 'x-response-probe',
+    operation: 'set',
+    value: 'delivered',
+  });
+
+  await page.close();
+});

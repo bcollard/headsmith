@@ -172,7 +172,10 @@ A few things worth trying, because they are where the behaviour is opinionated:
 - **Leave the scope empty on that profile.** It refuses to apply and says why —
   a credential must name where it is allowed to go.
 - **Set a response header,** then use the button on the echo page to fetch it
-  back and see what your browser received.
+  back and see what your browser received. If you check in DevTools instead,
+  note that a cross-origin `fetch(...).headers.get(...)` in the console will
+  report `null` even when the header is there — CORS only exposes safelisted
+  response headers to script. DevTools' Network panel shows the real ones.
 - **Press Alt+Shift+H.** Everything stops, and nothing is lost.
 
 After a rebuild, click the reload icon on the extension card in
