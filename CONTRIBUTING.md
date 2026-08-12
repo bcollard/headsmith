@@ -132,10 +132,19 @@ record the version used.
 ## Required repository settings
 
 These live in repository configuration rather than in the tree, so they are
-documented here. On `main`:
+documented here. They are **applied** — this section records what is set and
+why, not what someone ought to get round to.
 
-- **Require a pull request before merging**, with at least one approving review
-  and stale approvals dismissed on new commits.
+On `main`:
+
+- **Require a pull request before merging.** Approvals required: **0**, and
+  that is deliberate rather than lax. GitHub does not let anyone approve their
+  own pull request, so on a repository with one maintainer a requirement of one
+  approval does not raise the bar — it makes merging impossible. Everything a
+  review would gate on (the full test suite, the invariant guards, the security
+  scans) is enforced by the required checks below, which no human can wave
+  through. Raise this to 1 the moment there is a second maintainer.
+- **Dismiss stale approvals** when new commits are pushed.
 - **Require status checks to pass**, and require branches to be up to date
   first. Required checks:
   - `Typecheck, lint, test, build, guards`
@@ -143,8 +152,11 @@ documented here. On `main`:
   - `Permission change needs review`
   - `CodeQL`, `Semgrep`, `Dependency vulnerabilities`, `Secret scan`
 - **Require conversation resolution before merging.**
+- **Require a linear history.**
 - **Do not allow bypassing the above**, including for administrators. An
-  extension with `<all_urls>` is not a place for a convenience exemption.
+  extension with `<all_urls>` is not a place for a convenience exemption. The
+  practical consequence is that maintainers push branches and open pull
+  requests like everyone else; direct pushes to `main` are refused.
 - **Restrict force pushes and deletions.**
 - **Require signed commits.**
 
@@ -152,6 +164,13 @@ Also enable, under repository security settings: private vulnerability
 reporting, Dependabot alerts and security updates, and secret scanning with
 push protection.
 
-Tag protection on `v*` matters more than it looks: `release.yml` attests
-whatever a tag points at, so anyone who can move a tag can get a signed
-attestation for arbitrary content.
+Tag protection on `v*` matters more than it looks, and is applied as a
+repository ruleset blocking deletion and non-fast-forward updates:
+`release.yml` attests whatever a tag points at, so anyone able to move a tag
+could obtain a signed attestation for content that was never reviewed. The
+attestation would verify. That is the one place where the provenance story
+could be undermined from inside the repository rather than outside it.
+
+Tags are not required to be signed, because the release flow creates annotated
+tags rather than signed ones. Worth revisiting; it is a smaller hole than a
+movable tag, since the ruleset already prevents a tag from being repointed.
