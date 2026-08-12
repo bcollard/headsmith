@@ -260,9 +260,15 @@ In order of how often it turns out to be the cause:
 
    - **DevTools' Network panel reports response headers as they arrived from
      the server**, before extension modification. A correctly applied header is
-     simply absent from that list. Confirmed against a real Chrome: a
-     `Content-Type` override to `text/plain` visibly changed how the page was
-     parsed while the panel still displayed `application/json`.
+     simply absent from that list.
+
+     The mechanism, since it was guessed at wrongly twice before being
+     measured: Chrome emits the headers over CDP twice.
+     `Network.responseReceived` carries the processed headers and *does*
+     contain the modification; `Network.responseReceivedExtraInfo` carries the
+     raw on-the-wire headers and does not. The Network panel renders the raw
+     one. This is by design and version-independent -- confirmed by a user
+     updating Chrome and seeing no change.
    - **`fetch().headers.get()` cross-origin returns `null`** for any
      non-safelisted response header, present or not, because CORS does not
      expose it to script.
