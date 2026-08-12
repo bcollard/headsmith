@@ -256,13 +256,25 @@ In order of how often it turns out to be the cause:
 2. **A stale unpacked build.** Chrome does not reload `dist/` on its own. The
    reload button on the extension card is required after every rebuild.
 3. **The response was cached.** No network response, no rule application.
-4. **Checking a response header with `fetch().headers` cross-origin.** CORS
-   exposes only safelisted response headers to script, so it reports `null`
-   whether or not the header arrived. DevTools' Network panel is unaffected.
-   This produced a false negative during an investigation once already.
+4. **Checking a response header at all.** Both obvious methods lie:
 
-Response-header modification does work and *is* visible to DevTools; that was
-verified through CDP, which is the same source the Network panel reads.
+   - **DevTools' Network panel reports response headers as they arrived from
+     the server**, before extension modification. A correctly applied header is
+     simply absent from that list. Confirmed against a real Chrome: a
+     `Content-Type` override to `text/plain` visibly changed how the page was
+     parsed while the panel still displayed `application/json`.
+   - **`fetch().headers.get()` cross-origin returns `null`** for any
+     non-safelisted response header, present or not, because CORS does not
+     expose it to script.
+
+   The reliable check is a header with an observable effect -- `Content-Type`
+   is the good one, since Chrome must have read the modified value to parse the
+   body the way it did.
+
+   Both of these produced convincing false negatives during a real
+   investigation, one of them mine. The UI carries a note about it under the
+   response-header editor, because this will be the most common support
+   question the project ever gets.
 
 ## Traps hit while building this
 

@@ -171,15 +171,35 @@ A few things worth trying, because they are where the behaviour is opinionated:
   reference; the value goes to the secret store.
 - **Leave the scope empty on that profile.** It refuses to apply and says why —
   a credential must name where it is allowed to go.
-- **Set a response header,** then use the button on the echo page to fetch it
-  back and see what your browser received. If you check in DevTools instead,
-  note that a cross-origin `fetch(...).headers.get(...)` in the console will
-  report `null` even when the header is there — CORS only exposes safelisted
-  response headers to script. DevTools' Network panel shows the real ones.
+- **Set a response header.** Then read the next section, because checking this
+  one is genuinely counter-intuitive.
 - **Press Alt+Shift+H.** Everything stops, and nothing is lost.
 
 After a rebuild, click the reload icon on the extension card in
 `chrome://extensions`.
+
+### Response headers are hard to verify, and both obvious methods lie
+
+This is the single most confusing thing about any extension that modifies
+response headers, so it is worth stating plainly.
+
+**DevTools does not show them.** The Network panel reports response headers as
+they arrived from the server, before extensions modify them. A header you set
+here can be applied correctly and still be absent from that list. Nothing is
+wrong.
+
+**`fetch(...).headers.get(...)` does not show them either**, on a cross-origin
+page. CORS exposes only a safelisted set of response headers to JavaScript, so
+a custom one reads as `null` whether or not it arrived.
+
+To actually confirm a response header is working, use one with a visible
+effect. Set `Content-Type` to `text/plain` on a page that returns JSON: if it
+stops rendering as formatted JSON and becomes raw text, response headers are
+being applied. Chrome had to have read the modified header to parse it that
+way.
+
+The local echo server is the other way — it shows you what the server received
+and lets you fetch the page back same-origin, where CORS does not apply.
 
 ## Development
 

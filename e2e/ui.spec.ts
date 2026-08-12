@@ -10,6 +10,7 @@
 import { test, expect, chromium, type BrowserContext, type Page } from '@playwright/test';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawn } from 'node:child_process';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const extensionPath = path.join(here, '..', 'dist', 'chrome');
@@ -314,15 +315,12 @@ test('the profile name field is labelled', async () => {
   await page.close();
 });
 
-test('a response header reaches the browser and is visible to DevTools', async () => {
-  /* Reported as "I add a response header and cannot see it in DevTools".
-     It works -- but nothing covered it, so there was no way to say so without
-     going and checking. Read through CDP, which is the same source the Network
-     panel uses, so this asserts what a user would actually look at.
-
-     Deliberately not read with fetch().headers: CORS hides non-safelisted
-     response headers from script on a cross-origin response whether or not
-     they are present, which produces a convincing false negative. */
+test('a response header is compiled into the rule', async () => {
+  /* Asserts the emitted rule only. Deliberately not "and DevTools shows it":
+     the Network panel reports response headers as they arrived from the
+     server, before extension modification, so a correctly applied header can
+     be absent from it. The test below proves application by observable effect
+     instead, which is the only honest way. */
   const page = await openEditor();
   await resetConfig(page);
   await page.reload();
@@ -347,4 +345,45 @@ test('a response header reaches the browser and is visible to DevTools', async (
   });
 
   await page.close();
+});
+
+test('a response header really is applied, proved by observable effect', async () => {
+  /* The only trustworthy check. Both obvious ones lie: DevTools shows
+     pre-modification headers, and a cross-origin fetch().headers.get() returns
+     null for any non-safelisted header whether or not it arrived.
+
+     Overriding Content-Type is different in kind -- Chrome has to have read the
+     modified value to parse the body the way it did, so the parse result is
+     the evidence. Here a JSON endpoint is forced to text/plain and the page is
+     asked what it thinks it is. */
+  const server = spawn('node', ['scripts/echo-server.mjs'], { cwd: process.cwd(), stdio: 'ignore' });
+  await new Promise((resolve) => setTimeout(resolve, 800));
+
+  try {
+    const page = await openEditor();
+    await resetConfig(page);
+    await page.reload();
+
+    await page.getByRole('button', { name: 'Add response header' }).click();
+    await page.getByLabel('Header name').last().fill('Content-Type');
+    await page.getByLabel('Header value').last().fill('text/plain');
+    await page.getByRole('tab', { name: 'scope' }).click();
+    await page.getByLabel('Domains', { exact: true }).fill('localhost');
+
+    await expect
+      .poll(async () => JSON.stringify((await liveRules()).dynamic), { timeout: 5000 })
+      .toContain('content-type');
+
+    const target = await context.newPage();
+    await target.goto('http://localhost:8787/headers.json', { waitUntil: 'load' });
+
+    // The endpoint serves application/json. If the override did not apply,
+    // Chrome would have parsed it as JSON.
+    expect(await target.evaluate(() => document.contentType)).toBe('text/plain');
+
+    await target.close();
+    await page.close();
+  } finally {
+    server.kill();
+  }
 });

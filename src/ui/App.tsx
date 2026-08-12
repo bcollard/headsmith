@@ -159,6 +159,21 @@ export function App() {
                 target="response"
                 onChange={(responseHeaders: HeaderOp[]) => setProfile({ responseHeaders })}
               />
+              {/* Shown only once someone actually uses the feature, so it does
+                  not nag people who never will. It is here because it is the
+                  question this extension will be asked most often, and the
+                  honest answer is that the obvious way to check does not
+                  work. */}
+              {profile.responseHeaders.length > 0 ? (
+                <p className="hs-hint hs-devtools-note">
+                  DevTools may not show these. Its Network panel reports response headers as
+                  they arrived from the server, before extensions modify them, so a header set
+                  here can be applied and still be absent from that list. To confirm one is
+                  working, set <code>Content-Type</code> to <code>text/plain</code> on a JSON
+                  page — if the page stops rendering as formatted JSON, response headers are
+                  being applied.
+                </p>
+              ) : null}
 
               {popup ? (
                 <>

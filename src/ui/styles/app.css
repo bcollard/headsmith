@@ -654,3 +654,18 @@
   align-items: center;
   gap: 8px;
 }
+
+.hs-devtools-note {
+  border-left: 2px solid var(--hs-border);
+  padding-left: 10px;
+  margin-top: 8px;
+  max-width: 60ch;
+}
+
+.hs-devtools-note code {
+  font-family: var(--hs-mono);
+  font-size: 11px;
+  background: color-mix(in srgb, var(--hs-text) 8%, transparent);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
