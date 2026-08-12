@@ -153,10 +153,19 @@ On `main`:
   - `CodeQL`, `Semgrep`, `Dependency vulnerabilities`, `Secret scan`
 - **Require conversation resolution before merging.**
 - **Require a linear history.**
-- **Do not allow bypassing the above**, including for administrators. An
-  extension with `<all_urls>` is not a place for a convenience exemption. The
-  practical consequence is that maintainers push branches and open pull
-  requests like everyone else; direct pushes to `main` are refused.
+- **Administrators may bypass the pull request and status-check requirements.**
+  This is a deliberate concession to a single-maintainer repository, and it is
+  the weakest setting here, so it is worth being exact about what it costs.
+
+  A direct push to `main` by an administrator skips the seven required checks.
+  They still *run* on the push, so a broken `main` is visible within a couple
+  of minutes — but they no longer gate. Everyone else, including a future
+  contributor and every Dependabot pull request, is held to all of them.
+
+  What is deliberately **not** bypassable, for anyone: force pushes, branch
+  deletion, unsigned commits, and the release-tag ruleset. Those are the
+  settings that protect the history and the provenance chain rather than the
+  quality of a change, and none of them has a convenience argument.
 - **Restrict force pushes and deletions.**
 - **Require signed commits.**
 
