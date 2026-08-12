@@ -13,6 +13,7 @@ import { parseConfig, type Config } from '../../core/schema';
 import { migrate } from '../../core/migrations';
 import { collectSecretIds } from '../../core/schema';
 import { Button, Callout, Field, ListInput } from './primitives';
+import { HostAccessPanel } from './HostAccessPanel';
 
 export function SettingsPanel({
   config,
@@ -58,8 +59,11 @@ export function SettingsPanel({
   };
 
   return (
-    <section className="hs-panel">
-      <h2>Never modify these URLs</h2>
+    <>
+      <HostAccessPanel />
+
+      <section className="hs-panel">
+        <h2>Never modify these URLs</h2>
       <Callout tone="info">
         These apply across every profile. Chrome's exclusion mechanism suppresses all header
         rules for a matching request and cannot be scoped to one profile, so this is deliberately
@@ -112,16 +116,17 @@ export function SettingsPanel({
       </div>
 
       {importError ? <Callout tone="danger">{importError}</Callout> : null}
-      {imported !== null ? (
-        <Callout tone="info" title="Imported">
-          {imported === 0
-            ? 'No credentials were referenced, so nothing further is needed.'
-            : `${imported} credential${imported === 1 ? '' : 's'} referenced. Enter ${
-                imported === 1 ? 'its value' : 'their values'
-              } before those profiles will apply.`}
-        </Callout>
-      ) : null}
-    </section>
+        {imported !== null ? (
+          <Callout tone="info" title="Imported">
+            {imported === 0
+              ? 'No credentials were referenced, so nothing further is needed.'
+              : `${imported} credential${imported === 1 ? '' : 's'} referenced. Enter ${
+                  imported === 1 ? 'its value' : 'their values'
+                } before those profiles will apply.`}
+          </Callout>
+        ) : null}
+      </section>
+    </>
   );
 }
 

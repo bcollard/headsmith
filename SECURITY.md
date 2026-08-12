@@ -56,6 +56,13 @@ which is true, and is precisely what optional permissions exist for. The
 install prompt it produced said *"Read and change all your data on all
 websites"*, which was frightening and, on the "read" half, simply untrue.
 
+**Broad access remains available, deliberately.** *Settings → Site access*
+lists what is granted, removes any of it, and offers a single switch to allow
+every site. Hiding that would not reduce how often it is granted — it would
+only mean people reach it sideways, by writing a URL filter until the
+per-profile control offers it. An escape hatch that is visible and revocable
+is safer than one that is neither.
+
 **The honest boundary.** A profile scoped only by URL substring or regular
 expression can match a URL on any host, so nothing narrower than full access
 can serve it. Those profiles ask for broad access explicitly, and say why
@@ -197,6 +204,10 @@ that affects credential handling or rule integrity.
 Any change to the permission set, the credential model or the invariant guards
 is recorded here. CI requires an entry in this section for permission changes.
 
+- **1.3.0** — Site access made visible and revocable from Settings, with a
+  deliberate switch for granting every site. No change to what is requested or
+  held; this only makes the existing state inspectable and reversible from
+  inside the extension rather than only from Chrome's settings.
 - **1.2.0** — `<all_urls>` removed. Host access is now optional and requested
   at runtime, per domain, from a user gesture. `optional_host_permissions` is
   `*://*/*`, granted only when a profile's scoping cannot be reduced to

@@ -105,6 +105,11 @@ Grant `api.example.com` and that is what Chrome asks about; it is revocable
 per-site from Chrome's settings. A profile scoped only by URL text or a regex
 can match any host, so those ask for broad access explicitly and say why.
 
+**Settings → Site access** shows exactly what is currently granted, lets you
+remove any of it, and carries a deliberate **Allow all sites** switch for when
+granting domain by domain is not worth the trouble. Granting is never one-way:
+anything allowed there can be withdrawn there.
+
 Each entry is justified in
 [`scripts/permissions-baseline.json`](scripts/permissions-baseline.json).
 

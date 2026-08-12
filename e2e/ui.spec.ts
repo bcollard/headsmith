@@ -524,3 +524,46 @@ test('requesting a host refuses without a user gesture', async () => {
   });
   expect(result).toMatch(/user gesture/i);
 });
+
+test('site access can be seen and revoked, not only granted', async () => {
+  /* Granting was one-way from inside the extension: the only way to take
+     access back was Chrome's own settings, which is a strange gap for an
+     extension whose pitch is holding as little as possible. */
+  const page = await openEditor();
+  await resetConfig(page);
+  await page.reload();
+  await page.getByRole('tab', { name: 'settings' }).click();
+
+  // Nothing granted on a fresh profile, and the panel says so plainly.
+  await expect(page.getByText(/No site access granted/i)).toBeVisible();
+  await expect(page.getByRole('button', { name: /Allow all sites/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Revoke all site access/i })).toHaveCount(0);
+
+  await page.close();
+});
+
+test('granted hosts are listed rather than merely implied', async () => {
+  /* Uses the build that already holds localhost, since the consent bubble
+     cannot be driven by a test.
+
+     The revoke path deliberately is not asserted here: that fixture declares
+     its hosts in `host_permissions`, and chrome.permissions.remove can only
+     remove *optional* permissions -- a required one is part of the manifest
+     and stays until the extension is uninstalled. In the shipped build every
+     host is optional, so revoking works there; it simply cannot be reached
+     from a fixture that had to hard-code its access to exist at all.
+
+     What that leaves untested is one API call. What it covers is everything
+     around it: the states, the copy, and the listing. */
+  await withGrantedHost(async (ctx, extId) => {
+    const page = await ctx.newPage();
+    await page.setViewportSize({ width: 1000, height: 900 });
+    await page.goto(`chrome-extension://${extId}/app.html?expanded=1`);
+    await page.getByRole('tab', { name: 'settings' }).click();
+
+    await expect(page.getByText(/can act on these sites/i)).toBeVisible();
+    await expect(page.getByText('localhost', { exact: true }).first()).toBeVisible();
+    // Broad access is not offered when specific hosts already cover the need.
+    await expect(page.getByRole('button', { name: /Revoke all site access/i })).toBeVisible();
+  });
+});
