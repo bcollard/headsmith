@@ -682,3 +682,11 @@
   overflow-x: auto;
   white-space: pre;
 }
+
+.hs-granted {
+  color: #0b6e3f;
+}
+
+@media (prefers-color-scheme: dark) {
+  .hs-granted { color: #4ade80; }
+}

@@ -37,35 +37,42 @@ CI fails if the built manifest drifts from that file.
 | `declarativeNetRequest` | The only header-modification mechanism used. Deliberately not `declarativeNetRequestFeedback`, which would expose which rules matched which requests. |
 | `storage` | `storage.local` for profiles, settings and vault ciphertext; `storage.session` for the derived vault key, which is cleared when the browser exits. |
 | `alarms` | Drives the vault auto-lock deadline. |
-| `<all_urls>` | See below. |
+| `<all_urls>` | **Not requested.** See below. |
 
-### Why `<all_urls>`
+### Host access is optional, and asked for one domain at a time
 
-This is the grant that deserves the most scrutiny, so here is the honest
-version.
+Headsmith requests **no host access at install**. The install prompt says
+nothing about websites, because at that point the extension has been granted
+nothing.
 
-Header rules are only useful against hosts the user names, and the user names
-them at runtime — in the profile editor, after install. Chrome offers no
-mechanism to request a host set that is decided later: `optional_host_permissions`
-with a runtime prompt exists, but `declarativeNetRequest` rules are evaluated
-against the extension's granted host access as a whole, and a rule set that
-grows and shrinks as the user edits profiles would produce silent, confusing
-failures where a rule is configured and simply does not fire.
+Access is requested when a profile first names a domain, and only for that
+domain. Name `api.example.com` and Chrome asks about `api.example.com`. The
+grant is per-site, visible in Chrome's extension settings, and revocable there
+without uninstalling anything.
 
-So the broad grant is structural for this class of extension rather than a
-convenience we chose.
+This replaces an earlier `<all_urls>` grant. The argument for that grant was
+that the hosts are chosen at runtime and so cannot be listed at build time —
+which is true, and is precisely what optional permissions exist for. The
+install prompt it produced said *"Read and change all your data on all
+websites"*, which was frightening and, on the "read" half, simply untrue.
 
-What bounds it is the point made above: the permission grants the ability to
-*modify* headers on any host, not to *observe* anything. A compromised or
-malicious version of Headsmith with this permission set could inject a header
-into your requests. It could not exfiltrate what it saw, because it sees
-nothing, and it could not phone home, because there is no network primitive in
-the bundle and CI fails if one appears.
+**The honest boundary.** A profile scoped only by URL substring or regular
+expression can match a URL on any host, so nothing narrower than full access
+can serve it. Those profiles ask for broad access explicitly, and say why
+before the prompt appears. Scoping by domain instead is one field away and the
+UI says so.
 
-We consider narrowing this in a future version by asking for host permissions
-per profile at the moment a profile is created. It is not obviously better —
-it trades a broad static grant for a series of prompts users will click
-through — but it is on the table.
+**Why not `activeTab`.** The Web Store review suggests it, and it cannot work
+here — verified rather than assumed. `declarativeNetRequest` needs host access
+at the moment a request is made; `activeTab` grants it on a user gesture, which
+happens after the navigation whose headers were to be modified, and is revoked
+on the next navigation. Loading a build with `activeTab` and no host
+permissions applies no headers at all. It is sound advice for content scripts
+and inapplicable to a declarative header rewriter.
+
+What still bounds the broad grant, for anyone who chooses it: the permission
+allows *modifying* headers, not observing anything. `declarativeNetRequest`
+hands no request, response, header value or URL to the extension.
 
 ## Invariants, and how each one is enforced
 
@@ -190,5 +197,9 @@ that affects credential handling or rule integrity.
 Any change to the permission set, the credential model or the invariant guards
 is recorded here. CI requires an entry in this section for permission changes.
 
-- **Unreleased** — initial permission set established: `declarativeNetRequest`,
-  `storage`, `alarms`, `<all_urls>`.
+- **1.2.0** — `<all_urls>` removed. Host access is now optional and requested
+  at runtime, per domain, from a user gesture. `optional_host_permissions` is
+  `*://*/*`, granted only when a profile's scoping cannot be reduced to
+  specific hosts. This narrows what the extension holds; nothing is widened.
+- **1.0.0** — initial permission set: `declarativeNetRequest`, `storage`,
+  `alarms`, `<all_urls>`.

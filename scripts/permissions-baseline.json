@@ -7,16 +7,16 @@
 
   "permissions": ["alarms", "declarativeNetRequest", "storage"],
 
-  "host_permissions": ["<all_urls>"],
+  "host_permissions": [],
 
   "optional_permissions": [],
 
-  "optional_host_permissions": [],
+  "optional_host_permissions": ["*://*/*"],
 
   "justifications": {
     "declarativeNetRequest": "The only mechanism used to modify headers. Rules are handed to the browser, which applies them itself; the extension is never invoked per request and cannot read request or response data. This is deliberately not declarativeNetRequestWithHostAccess or declarativeNetRequestFeedback -- neither the matched-rule feed nor host-gated evaluation is needed, and both would widen what the extension can learn about traffic.",
     "storage": "storage.local holds profiles, settings and vault ciphertext. storage.session holds the derived vault key and session-mode credential values, and is cleared when the browser exits, which is what makes 'credentials never touch disk' true rather than aspirational. The default TRUSTED_CONTEXTS access level is never widened.",
     "alarms": "Drives the vault auto-lock deadline. An MV3 service worker can be suspended at any moment, so the lock deadline is a timestamp in storage.session and the alarm only wakes the worker to compare it against the clock. Without this permission the vault still locks on browser restart, but not after an idle period.",
-    "<all_urls>": "Header rules are only useful against the hosts the user names, and the user names them at runtime -- after install, in the profile editor. Chrome offers no way to request a host set that is decided later, so a broad host grant is structural for this class of extension rather than a convenience. What bounds it is that declarativeNetRequest cannot observe traffic: the extension receives no request, no response, no header value and no URL. It hands the browser a rule list and the browser does the rest. Full argument in SECURITY.md."
+    "*://*/*": "Optional, never granted at install, and requested only when the user asks for it. A profile scoped to domains requests just those domains (*://*.example.com/*); this broad pattern is requested only for a profile scoped solely by URL substring or regex, which genuinely can match any host, and the user is told so before the prompt. declarativeNetRequest requires host access for modifyHeaders at request time, and activeTab cannot substitute -- its grant arrives on a user gesture, which is after the navigation whose headers were to be changed. Verified rather than assumed; see src/core/origins.ts and SECURITY.md."
   }
 }

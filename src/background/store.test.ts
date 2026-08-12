@@ -86,6 +86,7 @@ describe('status', () => {
       blocked: [],
       problems: [],
       vaultUnlocked: true,
+      missingPermissions: [],
       budget: { dynamic: 3, session: 0, pressure: 0.001, breaches: [] },
       updatedAt: 42,
     };

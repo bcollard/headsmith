@@ -173,15 +173,20 @@ Justifications, which the reviewer will ask for:
 - **`storage`** — profiles and settings locally; credentials in session storage
   or encrypted.
 - **`alarms`** — the credential vault's idle auto-lock timer.
-- **`<all_urls>`** — users configure which hosts their header rules apply to at
-  runtime, so the host set cannot be known at install time. The permission
-  allows modifying headers, not reading traffic, which declarativeNetRequest
-  does not permit.
+- **`optional_host_permissions: ["*://*/*"]`** — nothing is granted at install.
+  Access is requested per domain when a profile names one, so a user who scopes
+  to `api.example.com` grants only that. Broad access is requested solely for
+  profiles scoped by URL substring or regex, which genuinely can match any
+  host, and only after telling the user so.
 
 Answer **no** to every data-use question, and be ready to point at the source.
-A header extension requesting `<all_urls>` attracts scrutiny; the honest
-answer — that DNR structurally cannot read traffic — is also the persuasive
-one.
+
+If the review flags host permissions anyway, the reply is that none are held at
+install and the broad pattern is optional and user-initiated. Worth adding that
+`activeTab` — which the reviewer's boilerplate suggests — cannot work for a
+declarativeNetRequest extension: host access is needed when the request is
+made, and `activeTab` grants it on a gesture that happens after the navigation
+and is revoked by the next one. That was verified, not argued.
 
 ## Review
 

@@ -12,7 +12,7 @@ import { useConfig } from './state/useConfig';
 import { useStatus } from './state/useStatus';
 import { useVault } from './state/useVault';
 import { HeaderTable } from './components/HeaderTable';
-import { CompactMatchEditor, MatchEditor } from './components/MatchEditor';
+import { CompactMatchEditor, HostAccess, MatchEditor } from './components/MatchEditor';
 import { ProfileBar, ProfileHeader, ProfileList } from './components/ProfileList';
 import { SettingsPanel } from './components/SettingsPanel';
 import { StatusBar } from './components/StatusBar';
@@ -189,6 +189,7 @@ export function App() {
                     hasCredential={hasSensitiveContent(profile)}
                     onChange={(match) => setProfile({ match })}
                   />
+                  <HostAccess profile={profile} />
                   <p className="hs-hint hs-popup-note">
                     Regexes, exclusions, request types, credentials and profile management are
                     in the full editor.
@@ -205,6 +206,7 @@ export function App() {
                 hasCredential={hasSensitiveContent(profile)}
                 onChange={(match) => setProfile({ match })}
               />
+              <HostAccess profile={profile} />
               {hasSensitiveContent(profile) ? (
                 <Toggle
                   checked={profile.allowGlobalSensitive}

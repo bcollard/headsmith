@@ -19,6 +19,7 @@ import {
 } from '../background/secrets';
 import { CONFIG_KEY, loadAndMigrate, loadConfig, saveConfig } from '../background/store';
 import { alarms, commands, onStorageChanged, runtime, session } from '../platform/chrome';
+import { hostPermissions } from '../platform/permissions';
 
 type Message =
   | { type: 'apply' }
@@ -34,6 +35,12 @@ export default defineBackground(() => {
   onStorageChanged((changes, area) => {
     if (area === 'local' && CONFIG_KEY in changes) void applyRules();
   });
+
+  /* Granting or revoking a host changes which rules Chrome will act on, and a
+     revocation can happen in Chrome's own settings with the extension nowhere
+     in sight. Rebuilding here keeps the badge and the status honest instead of
+     leaving rules that silently stopped applying. */
+  hostPermissions.onChanged(() => void applyRules());
 
   alarms.onAlarm(async (alarm) => {
     if (alarm.name !== LOCK_ALARM) return;

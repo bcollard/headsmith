@@ -54,12 +54,20 @@ export default defineConfig({
       // but not after an idle timeout.
       'alarms',
     ],
-    // Header rules are only useful if they can apply to the hosts the user
-    // names, and the user names them at runtime. Chrome offers no way to ask
-    // for a host set that is decided after install, so the broad grant is
-    // structural rather than a convenience. What limits the blast radius is
-    // that DNR cannot read traffic. Rationale in full: SECURITY.md.
-    host_permissions: ['<all_urls>'],
+    /* No host access at install.
+     *
+     * Header rules only apply to hosts the user names, and they name them at
+     * runtime -- so the hosts are requested at runtime too, when a profile
+     * first names one. The install prompt is then silent about hosts instead
+     * of claiming the extension will "read and change all your data on all
+     * websites", which was both alarming and untrue: declarativeNetRequest
+     * cannot read anything.
+     *
+     * Broad access remains available and is requested explicitly for profiles
+     * scoped only by URL substring or regex, which really can match any host.
+     * That is the honest boundary; see src/core/origins.ts. */
+    host_permissions: [],
+    optional_host_permissions: ['*://*/*'],
     action: {
       default_title: 'Headsmith',
       default_popup: '/app.html',

@@ -62,6 +62,33 @@ async function liveRules(): Promise<{ dynamic: unknown[]; session: unknown[] }> 
   }));
 }
 
+
+/* A context whose build already holds localhost, for the tests that need a
+   rule to actually apply. See scripts/make-granted-build.mjs for why this is
+   necessary and why the alternative was worse. */
+const grantedPath = path.join(here, '..', 'dist', 'chrome-granted');
+
+async function withGrantedHost(
+  body: (ctx: BrowserContext, extensionId: string) => Promise<void>,
+): Promise<void> {
+  const ctx = await chromium.launchPersistentContext('', {
+    channel: 'chromium',
+    headless: false,
+    args: [
+      `--disable-extensions-except=${grantedPath}`,
+      `--load-extension=${grantedPath}`,
+      ...(process.env['HEADED'] ? [] : ['--window-position=-32000,-32000']),
+    ],
+  });
+  try {
+    let worker = ctx.serviceWorkers()[0];
+    if (!worker) worker = await ctx.waitForEvent('serviceworker');
+    await body(ctx, new URL(worker.url()).host);
+  } finally {
+    await ctx.close();
+  }
+}
+
 async function resetConfig(page: Page) {
   await page.evaluate(async () => {
     await chrome.storage.local.clear();
@@ -354,35 +381,30 @@ test('a response header really is applied, proved by observable effect', async (
 
      Overriding Content-Type is different in kind -- Chrome has to have read the
      modified value to parse the body the way it did, so the parse result is
-     the evidence. Here a JSON endpoint is forced to text/plain and the page is
-     asked what it thinks it is. */
+     the evidence. */
   const server = spawn('node', ['scripts/echo-server.mjs'], { cwd: process.cwd(), stdio: 'ignore' });
   await new Promise((resolve) => setTimeout(resolve, 800));
 
   try {
-    const page = await openEditor();
-    await resetConfig(page);
-    await page.reload();
+    await withGrantedHost(async (ctx, extId) => {
+      const page = await ctx.newPage();
+      await page.setViewportSize({ width: 1000, height: 800 });
+      await page.goto(`chrome-extension://${extId}/app.html?expanded=1`);
 
-    await page.getByRole('button', { name: 'Add response header' }).click();
-    await page.getByLabel('Header name').last().fill('Content-Type');
-    await page.getByLabel('Header value').last().fill('text/plain');
-    await page.getByRole('tab', { name: 'scope' }).click();
-    await page.getByLabel('Domains', { exact: true }).fill('localhost');
+      await page.getByRole('button', { name: 'Add response header' }).click();
+      await page.getByLabel('Header name').last().fill('Content-Type');
+      await page.getByLabel('Header value').last().fill('text/plain');
+      await page.getByRole('tab', { name: 'scope' }).click();
+      await page.getByLabel('Domains', { exact: true }).fill('localhost');
+      await page.waitForTimeout(1300);
 
-    await expect
-      .poll(async () => JSON.stringify((await liveRules()).dynamic), { timeout: 5000 })
-      .toContain('content-type');
+      const target = await ctx.newPage();
+      await target.goto('http://localhost:8787/headers.json', { waitUntil: 'load' });
 
-    const target = await context.newPage();
-    await target.goto('http://localhost:8787/headers.json', { waitUntil: 'load' });
-
-    // The endpoint serves application/json. If the override did not apply,
-    // Chrome would have parsed it as JSON.
-    expect(await target.evaluate(() => document.contentType)).toBe('text/plain');
-
-    await target.close();
-    await page.close();
+      // The endpoint serves application/json. Anything else means the override
+      // was read by the parser.
+      expect(await target.evaluate(() => document.contentType)).toBe('text/plain');
+    });
   } finally {
     server.kill();
   }
@@ -398,31 +420,89 @@ test('the documented way to check a response header actually works', async () =>
   await new Promise((resolve) => setTimeout(resolve, 800));
 
   try {
+    await withGrantedHost(async (ctx, extId) => {
+      const page = await ctx.newPage();
+      await page.setViewportSize({ width: 1000, height: 800 });
+      await page.goto(`chrome-extension://${extId}/app.html?expanded=1`);
+
+      await page.getByRole('button', { name: 'Add response header' }).click();
+      await page.getByLabel('Header name').last().fill('X-Verify-Me');
+      await page.getByLabel('Header value').last().fill('present');
+      await page.getByRole('tab', { name: 'scope' }).click();
+      await page.getByLabel('Domains', { exact: true }).fill('localhost');
+      await page.waitForTimeout(1300);
+
+      const target = await ctx.newPage();
+      await target.goto('http://localhost:8787/headers.json', { waitUntil: 'load' });
+
+      const value = await target.evaluate(
+        async () => (await fetch(location.href, { cache: 'no-store' })).headers.get('X-Verify-Me'),
+      );
+      expect(value).toBe('present');
+    });
+  } finally {
+    server.kill();
+  }
+});
+
+test('a fresh install holds no host access, and rules are inert without it', async () => {
+  /* The point of the optional-permission model. What cannot be automated is
+     Chrome's consent bubble -- permissions.request() refuses outside a user
+     gesture, which is the property that makes this worth doing -- so this
+     covers everything up to the click: no access at install, no effect without
+     access, and the grant control offered where the scope is set.
+
+     That rules DO apply once a host is granted is covered separately, by
+     loading a build whose manifest declares the host outright. */
+  const server = spawn('node', ['scripts/echo-server.mjs'], { cwd: process.cwd(), stdio: 'ignore' });
+  await new Promise((resolve) => setTimeout(resolve, 800));
+
+  try {
     const page = await openEditor();
     await resetConfig(page);
     await page.reload();
 
-    await page.getByRole('button', { name: 'Add response header' }).click();
-    await page.getByLabel('Header name').last().fill('X-Verify-Me');
-    await page.getByLabel('Header value').last().fill('present');
+    const [worker] = context.serviceWorkers();
+    const granted = await worker!.evaluate(() =>
+      chrome.permissions.getAll().then((p) => p.origins ?? []),
+    );
+    expect(granted).toEqual([]);
+
+    await page.getByLabel('Header name').first().fill('X-Needs-Grant');
+    await page.getByLabel('Header value').first().fill('yes');
     await page.getByRole('tab', { name: 'scope' }).click();
     await page.getByLabel('Domains', { exact: true }).fill('localhost');
 
+    // The rule is compiled and handed to Chrome...
     await expect
       .poll(async () => JSON.stringify((await liveRules()).dynamic), { timeout: 5000 })
-      .toContain('x-verify-me');
+      .toContain('x-needs-grant');
 
+    // ...and Chrome declines to act on it, because the host is not granted.
     const target = await context.newPage();
     await target.goto('http://localhost:8787/headers.json', { waitUntil: 'load' });
-
-    const value = await target.evaluate(
-      async () => (await fetch(location.href, { cache: 'no-store' })).headers.get('X-Verify-Me'),
-    );
-    expect(value).toBe('present');
-
+    expect(await target.textContent('body')).not.toContain('x-needs-grant');
     await target.close();
+
+    // The way out is offered where the scope was set.
+    await expect(page.getByRole('button', { name: /Allow these sites/i })).toBeVisible();
     await page.close();
   } finally {
     server.kill();
   }
+});
+
+test('requesting a host refuses without a user gesture', async () => {
+  /* Not a limitation to route around -- it is why the model is worth having.
+     A host can only ever be added because somebody clicked to add it. */
+  const [worker] = context.serviceWorkers();
+  const result = await worker!.evaluate(async () => {
+    try {
+      await chrome.permissions.request({ origins: ['*://*.example.com/*'] });
+      return 'granted without a gesture';
+    } catch (e) {
+      return String((e as Error).message);
+    }
+  });
+  expect(result).toMatch(/user gesture/i);
 });

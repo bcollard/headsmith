@@ -97,10 +97,16 @@ The guards read `dist/`, not `src/`, and that distinction is deliberate — the
 bug they were modelled on is a remote font stylesheet that is invisible in a
 source tree and only appears in build output.
 
-Four permissions: `declarativeNetRequest`, `storage`, `alarms`, and
-`<all_urls>`. Each is justified in
-[`scripts/permissions-baseline.json`](scripts/permissions-baseline.json), and
-the broad host grant is argued for honestly in [SECURITY.md](SECURITY.md).
+Three permissions at install — `declarativeNetRequest`, `storage`, `alarms` —
+and **no host access at all**. The install prompt says nothing about websites.
+
+Host access is requested one domain at a time, when a profile first names one.
+Grant `api.example.com` and that is what Chrome asks about; it is revocable
+per-site from Chrome's settings. A profile scoped only by URL text or a regex
+can match any host, so those ask for broad access explicitly and say why.
+
+Each entry is justified in
+[`scripts/permissions-baseline.json`](scripts/permissions-baseline.json).
 
 **Four runtime dependencies**: React, React DOM, Zod, and React's scheduler.
 Everything else in the tree is build-time only and never reaches your browser.

@@ -55,6 +55,16 @@ export interface Status {
   /** Operations dropped because Chrome would have rejected them. */
   problems: { profileId: string; header: string; detail: string }[];
   vaultUnlocked: boolean;
+  /* Profiles configured to do something they currently lack host access for.
+     Chrome enforces this itself by not applying the rule; this exists so the
+     answer to "why is nothing happening" is on screen. */
+  missingPermissions: {
+    profileId: string;
+    profileName: string;
+    origins: string[];
+    needsAllUrls: boolean;
+    hasCredential: boolean;
+  }[];
   budget: { dynamic: number; session: number; pressure: number; breaches: string[] };
   updatedAt: number;
 }

@@ -36,8 +36,10 @@
 
 import { budgetFor } from '../core/budget';
 import { compile, forChrome, type AnnotatedRule, type CompileResult } from '../core/compile';
+import { permissionGaps } from '../core/origins';
 import { collectSecretIds, type Config } from '../core/schema';
 import { badge, dnr, type RuleUpdate } from '../platform/chrome';
+import { hostPermissions } from '../platform/permissions';
 import { resolveSecrets, isUnlocked } from './secrets';
 import { loadConfig, saveStatus, type Status } from './store';
 
@@ -171,6 +173,11 @@ export async function applyRules(now: number = Date.now()): Promise<ApplyOutcome
       ...(await applyBucket({ read: dnr.getSession, write: dnr.updateSession }, result.session)),
     ];
 
+    /* Asked of Chrome rather than inferred, so what is reported is what the
+       browser will actually act on. */
+    const granted = await hostPermissions.granted();
+    const gaps = permissionGaps(config, granted);
+
     const budget = budgetFor(result);
     const status: Status = {
       ruleErrors: errors,
@@ -181,6 +188,13 @@ export async function applyRules(now: number = Date.now()): Promise<ApplyOutcome
       })),
       problems: [...result.problems],
       vaultUnlocked: unlocked,
+      missingPermissions: gaps.map((gap) => ({
+        profileId: gap.profileId,
+        profileName: gap.profileName,
+        origins: [...gap.origins],
+        needsAllUrls: gap.needsAllUrls,
+        hasCredential: gap.hasCredential,
+      })),
       budget: {
         dynamic: budget.dynamic.total,
         session: budget.session.total,

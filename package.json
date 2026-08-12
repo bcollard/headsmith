@@ -1,6 +1,6 @@
 {
   "name": "headsmith",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "description": "Chrome extension for adding, rewriting and removing HTTP headers, organised into profiles and scoped by URL filters.",
@@ -19,7 +19,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:update-fixtures": "UPDATE_FIXTURES=true vitest run",
-    "pretest:e2e": "npm run build",
+    "pretest:e2e": "npm run build && node scripts/make-granted-build.mjs",
     "test:e2e": "playwright test",
     "icons": "node scripts/generate-icons.mjs",
     "guard": "npm run guard:core && npm run guard:egress && npm run guard:manifest && npm run guard:refs",

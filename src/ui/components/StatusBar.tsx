@@ -10,6 +10,7 @@
  */
 
 import { describeBlock, type BlockReason } from '../../core/policy';
+import { describeOrigin } from '../../core/origins';
 import { LIMITS } from '../../core/budget';
 import { describeProblem } from '../../core/sensitivity';
 import type { Status } from '../../background/store';
@@ -47,6 +48,23 @@ export function StatusBar({
               </li>
             ))}
           </ul>
+        </Callout>
+      ) : null}
+
+      {status.missingPermissions.length > 0 ? (
+        <Callout tone="warn" title="Waiting on your permission">
+          <ul>
+            {status.missingPermissions.map((gap) => (
+              <li key={gap.profileId}>
+                <strong>{gap.profileName}</strong>{' '}
+                {gap.needsAllUrls
+                  ? 'needs access to every site, because it is scoped by URL text rather than a domain.'
+                  : `needs access to ${gap.origins.map(describeOrigin).join(', ')}.`}
+                {gap.hasCredential ? ' Its credential is not being sent.' : ''}
+              </li>
+            ))}
+          </ul>
+          <p className="hs-hint">Open Scope to grant it. Chrome will ask you to confirm.</p>
         </Callout>
       ) : null}
 

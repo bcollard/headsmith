@@ -17,3 +17,5 @@ build/
 
 # Working brief: local paths and internal notes, not a deliverable.
 headsmith-kickoff.md
+
+dist/chrome-granted/

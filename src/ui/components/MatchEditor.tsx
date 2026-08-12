@@ -11,7 +11,9 @@
  * is read and a paragraph about rule budgets is not.
  */
 
-import { RESOURCE_TYPES, type MatchSet } from '../../core/schema';
+import { RESOURCE_TYPES, type MatchSet, type Profile } from '../../core/schema';
+import { describeOrigin, originsForProfile } from '../../core/origins';
+import { useHostPermissions } from '../state/useHostPermissions';
 import { estimateProfileCost } from '../../core/budget';
 import { checkDomains, repairDomains } from '../../core/domains';
 import { Button, Callout, Field, ListInput } from './primitives';
@@ -226,4 +228,59 @@ export function MatchEditor({
       </p>
     </div>
   );
+}
+
+/* The grant control.
+ *
+ * Shown wherever a profile's scope is edited, in both the popup and the full
+ * editor, because the moment you name a domain is the moment the question
+ * arises. Deliberately not a modal or a first-run wizard: a permission prompt
+ * makes sense next to the thing that needs it and nowhere else.
+ */
+export function HostAccess({ profile }: { profile: Profile }) {
+  const need = originsForProfile(profile);
+  const { granted, busy, request } = useHostPermissions(need);
+
+  if (need.origins.length === 0) return null;
+  if (granted === null) return null;
+
+  if (granted) {
+    return (
+      <p className="hs-hint hs-granted">
+        ✓ Access granted for {need.needsAllUrls ? 'every site' : listHosts(need.origins)}.
+      </p>
+    );
+  }
+
+  return (
+    <Callout tone={profile.enabled ? 'warn' : 'info'} title="This profile needs your permission">
+      {need.needsAllUrls ? (
+        <>
+          <p>
+            Scoped by URL text or a regular expression rather than a domain, this profile could
+            match any site — so Chrome can only offer access to <strong>all sites</strong>.
+          </p>
+          <p className="hs-hint">
+            Naming a domain above asks for that domain alone instead, which is worth doing if
+            you can.
+          </p>
+        </>
+      ) : (
+        <p>
+          Chrome will ask you to allow {listHosts(need.origins)}. Nothing else is requested, and
+          you can withdraw it at any time from Chrome&apos;s extension settings.
+        </p>
+      )}
+      <Button variant="primary" onClick={() => void request()} disabled={busy}>
+        {busy ? 'Waiting for Chrome…' : need.needsAllUrls ? 'Allow all sites' : 'Allow these sites'}
+      </Button>
+    </Callout>
+  );
+}
+
+function listHosts(origins: readonly string[]): string {
+  const names = origins.map(describeOrigin);
+  if (names.length === 1) return names[0]!;
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
