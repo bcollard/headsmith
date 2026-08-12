@@ -43,6 +43,18 @@ export function HeaderTable({
   onSecretLabel: (secretId: string, label: string) => void;
 }) {
   const [dragging, setDragging] = useState<number | null>(null);
+  /* Which row, if any, is currently allowed to be dragged.
+   *
+   * `draggable` on the row meant a mouse-drag anywhere inside it started a
+   * reorder -- including the drag that selects text in a header name or value,
+   * which is the single most common thing anyone does in this table. Selecting
+   * a token to replace it moved the row instead.
+   *
+   * HTML5 drag-and-drop has no notion of a handle, so the row is only made
+   * draggable once a press lands somewhere that is not a control: the grip, or
+   * the row's own surface. Pressing inside an input leaves it undraggable and
+   * the browser does its ordinary text selection. */
+  const [armed, setArmed] = useState<number | null>(null);
 
   const replace = (index: number, patch: Partial<HeaderOp>) => {
     onChange(headers.map((h, i) => (i === index ? { ...h, ...patch } : h)));
@@ -79,17 +91,39 @@ export function HeaderTable({
               <li
                 key={header.id}
                 className={`hs-header-row${dragging === index ? ' hs-dragging' : ''}`}
-                draggable
+                draggable={armed === index}
+                /* Arm only when the press did not land on something the user
+                   is trying to type in or click. Checked on the event target
+                   rather than by wiring handlers onto each control, so a
+                   control added later is covered without anyone remembering. */
+                onMouseDown={(e) => {
+                  const onControl = (e.target as HTMLElement).closest(
+                    'input, select, textarea, button, code, a',
+                  );
+                  setArmed(onControl ? null : index);
+                }}
+                onMouseUp={() => setArmed(null)}
                 onDragStart={() => setDragging(index)}
-                onDragEnd={() => setDragging(null)}
+                onDragEnd={() => {
+                  setDragging(null);
+                  setArmed(null);
+                }}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
                   e.preventDefault();
                   if (dragging !== null) move(dragging, index);
                   setDragging(null);
+                  setArmed(null);
                 }}
               >
-                <span className="hs-grip hs-cell-grip" title="Drag to reorder" aria-hidden="true">
+                <span
+                  className="hs-grip hs-cell-grip"
+                  title="Drag to reorder"
+                  aria-hidden="true"
+                  /* The handle proper. The row surface works too, but this is
+                     the part that looks draggable, so it has to be. */
+                  onMouseDown={() => setArmed(index)}
+                >
                   ⠿
                 </span>
 

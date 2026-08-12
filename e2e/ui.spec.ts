@@ -247,3 +247,69 @@ test('a field is named by its label, not by what is typed into it', async () => 
   await expect(page.getByLabel('Domains', { exact: true })).toHaveCount(1);
   await page.close();
 });
+
+test('dragging to select text in a header field does not move the row', async () => {
+  /* `draggable` sat on the whole row, so the drag that selects text in a name
+     or value -- the most common thing anyone does in this table -- reordered
+     the row instead. Reported from real use. */
+  const page = await openEditor();
+  await resetConfig(page);
+  await page.reload();
+
+  await page.getByLabel('Header name').first().fill('X-First');
+  await page.getByLabel('Header value').first().fill('one');
+  await page.getByRole('button', { name: 'Add request header' }).click();
+  await page.getByLabel('Header name').nth(1).fill('X-Second');
+  await page.getByLabel('Header value').nth(1).fill('two');
+
+  const firstName = page.getByLabel('Header name').first();
+  const box = (await firstName.boundingBox())!;
+
+  // Drag across the text inside the first field, as a person selecting a word.
+  await page.mouse.move(box.x + 6, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width - 6, box.y + box.height / 2, { steps: 12 });
+  // Continue well past the row, which under the old behaviour dropped it below.
+  await page.mouse.move(box.x + box.width - 6, box.y + box.height * 3, { steps: 12 });
+  await page.mouse.up();
+
+  // Order is unchanged...
+  await expect(page.getByLabel('Header name').first()).toHaveValue('X-First');
+  await expect(page.getByLabel('Header name').nth(1)).toHaveValue('X-Second');
+
+  // ...and the field really did select text rather than start a drag.
+  const selected = await page.evaluate(() => {
+    const el = document.activeElement as HTMLInputElement | null;
+    return el && 'selectionStart' in el
+      ? el.value.slice(el.selectionStart ?? 0, el.selectionEnd ?? 0)
+      : '';
+  });
+  expect(selected.length).toBeGreaterThan(0);
+
+  await page.close();
+});
+
+test('the grip still reorders rows', async () => {
+  const page = await openEditor();
+  await resetConfig(page);
+  await page.reload();
+
+  await page.getByLabel('Header name').first().fill('X-First');
+  await page.getByRole('button', { name: 'Add request header' }).click();
+  await page.getByLabel('Header name').nth(1).fill('X-Second');
+
+  const grip = page.locator('.hs-grip').nth(1);
+  const target = page.locator('.hs-header-row').first();
+  await grip.dragTo(target);
+
+  await expect(page.getByLabel('Header name').first()).toHaveValue('X-Second');
+  await page.close();
+});
+
+test('the profile name field is labelled', async () => {
+  const page = await openEditor();
+  await resetConfig(page);
+  await page.reload();
+  await expect(page.getByLabel('Profile', { exact: true })).toHaveCount(1);
+  await page.close();
+});

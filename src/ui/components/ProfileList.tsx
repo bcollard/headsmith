@@ -6,6 +6,7 @@
  * know whether Headsmith is the cause.
  */
 
+import { useId } from 'react';
 import { blankProfile, PROFILE_COLORS, type Config, type Profile } from '../../core/schema';
 import { hasSensitiveContent } from '../../core/sensitivity';
 import { Button } from './primitives';
@@ -133,12 +134,16 @@ export function ProfileHeader({
   onChange: (patch: Partial<Profile>) => void;
   showColours?: boolean;
 }) {
+  const id = useId();
   return (
     <div className="hs-profile-header">
+      <label className="hs-field-label hs-profile-label" htmlFor={id}>
+        Profile
+      </label>
       <input
+        id={id}
         className="hs-input hs-title-input"
         value={profile.name}
-        aria-label="Profile name"
         onChange={(e) => onChange({ name: e.target.value })}
       />
       {showColours ? (
@@ -180,29 +185,35 @@ export function ProfileBar({
 }) {
   const active = config.profiles.find((p) => p.id === config.activeProfileId) ?? config.profiles[0]!;
 
+  const id = useId();
   return (
     <div className="hs-profile-bar">
-      <span className="hs-swatch" style={{ background: active.color }} aria-hidden="true" />
-      <input
-        className="hs-input hs-title-input"
-        value={active.name}
-        aria-label="Profile name"
-        onChange={(e) => onRename(e.target.value)}
-      />
-      {config.profiles.length > 1 ? (
-        <select
-          className="hs-input hs-select"
-          value={active.id}
-          aria-label="Switch profile"
-          onChange={(e) => onSelect(e.target.value)}
-        >
-          {config.profiles.map((profile) => (
-            <option key={profile.id} value={profile.id}>
-              {profile.name}
-            </option>
-          ))}
-        </select>
-      ) : null}
+      <label className="hs-field-label hs-profile-label" htmlFor={id}>
+        Profile
+      </label>
+      <div className="hs-profile-bar-row">
+        <span className="hs-swatch" style={{ background: active.color }} aria-hidden="true" />
+        <input
+          id={id}
+          className="hs-input hs-title-input"
+          value={active.name}
+          onChange={(e) => onRename(e.target.value)}
+        />
+        {config.profiles.length > 1 ? (
+          <select
+            className="hs-input hs-select"
+            value={active.id}
+            aria-label="Switch profile"
+            onChange={(e) => onSelect(e.target.value)}
+          >
+            {config.profiles.map((profile) => (
+              <option key={profile.id} value={profile.id}>
+                {profile.name}
+              </option>
+            ))}
+          </select>
+        ) : null}
+      </div>
     </div>
   );
 }

@@ -629,3 +629,28 @@
 .hs-match-compact .hs-hint {
   font-size: 11px;
 }
+
+.hs-profile-label {
+  margin-bottom: 4px;
+}
+
+/* The expanded header is a row of [label, name, colours]; the label needs a
+   full-width line of its own above them. */
+.hs-profile-header {
+  flex-wrap: wrap;
+}
+
+.hs-profile-header .hs-profile-label {
+  flex-basis: 100%;
+  margin-bottom: 0;
+}
+
+.hs-profile-bar {
+  display: block;
+}
+
+.hs-profile-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
