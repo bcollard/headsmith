@@ -128,20 +128,28 @@ jobs:
       # verifying its checksum is fewer moving parts and a stronger supply
       # chain: the exact bytes are asserted here rather than resolved at run
       # time by a third party.
+      # Fetched through the authenticated release API rather than the
+      # anonymous CDN, which returned a run of 503s that retries did not get
+      # past. `gh` is preinstalled on the runner, so this adds no dependency.
+      #
+      # The checksum is the part that matters and is unchanged: whichever
+      # route the bytes arrive by, they are either the expected ones or the
+      # job fails. Pinning the version and verifying the hash is the security
+      # property; the transport is not.
       - name: Install gitleaks
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_VERSION: 8.30.1
           GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
         run: |
-          # Retried, because fetching a binary at job time makes a network
-          # blip look like a security failure -- and a security job that goes
-          # red for reasons unrelated to security is one people learn to
-          # ignore. The checksum below is what makes the retry safe: whatever
-          # arrives is either the expected bytes or nothing.
-          curl -fsSL --retry 5 --retry-delay 3 --retry-all-errors \
-            --connect-timeout 15 --max-time 180 \
-            -o gitleaks.tar.gz \
-            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          for attempt in 1 2 3; do
+            gh release download "v${GITLEAKS_VERSION}" \
+              --repo gitleaks/gitleaks \
+              --pattern "gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+              --output gitleaks.tar.gz --clobber && break
+            echo "attempt ${attempt} failed; retrying"
+            sleep $((attempt * 5))
+          done
           echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum -c -
           tar -xzf gitleaks.tar.gz gitleaks
           ./gitleaks version
