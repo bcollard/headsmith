@@ -30,7 +30,13 @@ the README become false.
 
 ## Assets
 
-All generated — run `npm run icons` and they land in `assets/`.
+All generated, none hand-made. Icons and promo tiles come from one geometry
+definition; screenshots are scripted against the real extension.
+
+```bash
+npm run icons        # icons, store icon, promo tiles
+npm run screenshots  # 1280x800 screenshots (needs a build first)
+```
 
 | Asset | Size | Where |
 | --- | --- | --- |
@@ -59,23 +65,49 @@ functionality.
 
 ## Release and upload
 
-```bash
-npm version minor
-git push --follow-tags
-```
-
-Wait for `release.yml` to finish, then download the `.zip` **from the GitHub
-release page**.
-
-Sanity-check it before uploading:
+Tag last, not first. `release.yml` attests whatever the tag points at, so the
+commit must already be on `main` with CI green before it is tagged — otherwise
+you get a signed attestation for something that was never checked.
 
 ```bash
-gh attestation verify headsmith-1.0.0.zip --repo bcollard/headsmith
-node scripts/verify-reproducible.mjs headsmith-1.0.0.zip
+# 1. bump, land on main, let CI go green
+npm pkg set version=1.2.0          # or patch/major as appropriate
+git commit -am "Release 1.2.0"
+git push origin main
+gh run watch                        # wait for CI and Security
+
+# 2. only now tag it
+git tag -a v1.2.0 -m "Headsmith 1.2.0"
+git push origin v1.2.0
 ```
+
+`release.yml` then re-runs every gate, builds, packages, confirms the build
+reproduces, generates the SBOM, attests provenance and publishes.
+
+Download the `.zip` **from the GitHub release page**, then check it before
+uploading anything:
+
+```bash
+V=1.2.0
+gh release download "v$V" --repo bcollard/headsmith -D /tmp/hs
+cd /tmp/hs && shasum -a 256 -c SHA256SUMS
+gh attestation verify "headsmith-$V.zip" --repo bcollard/headsmith
+cd - && node scripts/verify-reproducible.mjs "/tmp/hs/headsmith-$V.zip"
+```
+
+All four should pass: checksums match, the attestation names this repository
+and that tag, and your own rebuild is byte-identical to the published bytes.
 
 Then: developer console → **New item** → upload the zip. Chrome parses the
 manifest and reports validation errors before you go further.
+
+### Before you submit
+
+- [ ] The zip is the one from the release page, not `build/` locally
+- [ ] `gh attestation verify` passes on that exact file
+- [ ] Screenshots regenerated if the UI changed (`npm run screenshots`)
+- [ ] `SECURITY.md` changelog updated if permissions moved
+- [ ] The listing text below still matches what the extension does
 
 ## Listing
 
@@ -172,6 +204,20 @@ Common rejections and what fixes them:
 Bump the version, push the tag, download the new release artifact, upload it
 in the dashboard, submit. The version in `manifest.json` comes from
 `package.json`, so `npm version` is the only place it needs changing.
+
+## After it is published
+
+The extension gets a permanent ID and a store URL. Two things to do once:
+
+1. Put the store link in `README.md`, replacing the "Not yet published" note in
+   *Try it locally*.
+2. Record the extension ID somewhere. Updates must go to the same listing;
+   a new listing is a different extension to every existing user, and there is
+   no way to migrate them.
+
+Updates are reviewed faster than a first submission, but a change to the
+permission set resets that — expect the longer review whenever
+`scripts/permissions-baseline.json` changes.
 
 ## Distributing outside the store
 
