@@ -109,6 +109,44 @@ manifest and reports validation errors before you go further.
 - [ ] `SECURITY.md` changelog updated if permissions moved
 - [ ] The listing text below still matches what the extension does
 
+## What actually distinguishes this, and how to say it
+
+Three properties are genuinely unusual for a header extension. They are worth
+leading with, because they are the reason to pick this one and they are all
+checkable.
+
+**1. No host access at install.** Most extensions in this category request
+`<all_urls>` up front, so installing one shows *"Read and change all your data
+on all websites"* before it has done anything. Headsmith requests nothing.
+Access is asked for one domain at a time, when a profile names one, and the
+prompt says that domain. Site access is listed in the extension's own settings
+and can be withdrawn there.
+
+**2. It cannot observe traffic, structurally.** Built on
+`declarativeNetRequest` alone: rules are handed to the browser and no extension
+code runs when a request is made. The same feature built on blocking
+`webRequest` receives every request and response header on every permitted site
+and must be trusted not to act on them. This is a property of the API, not a
+promise about conduct — which is why it can be stated so flatly.
+
+**3. Releases are reproducible and attested.** The Web Store signs the `.crx`
+itself from an uploaded `.zip`, so a store signature says the bytes came from a
+developer account and nothing about where they came from. Every Headsmith
+release is byte-reproducible from source and carries a provenance attestation
+binding it to a commit. Anyone can rebuild and compare.
+
+### Say it about Headsmith, not about other extensions
+
+The listing text below describes what Headsmith does and contrasts *approaches*
+— blocking `webRequest` versus declarative rules, install-time access versus
+per-domain — without naming another product.
+
+That is deliberate. Comparative claims about named competitors invite reviewer
+scrutiny and can fall foul of the Developer Program Policies, and the contrast
+does not need them: "this one asks for no sites at install" is a stronger, more
+checkable claim than "unlike X". Anyone comparing options will draw the
+conclusion themselves, and the factual version cannot be argued with.
+
 ## Listing
 
 | Field | Value |
@@ -134,6 +172,16 @@ Extensions that modify headers using blocking webRequest do see every
 request on every site they are permitted to touch. Headsmith does not ask
 for that permission.
 
+IT ASKS FOR NO SITES WHEN YOU INSTALL IT
+
+There is no "read and change all your data on all websites" prompt, because
+at install Headsmith is granted nothing at all. When a profile names a
+domain, Chrome asks about that domain and nothing else. Every site you have
+allowed is listed in the extension's settings and can be withdrawn there.
+
+Profiles scoped by URL text or a regular expression can match any site, so
+those ask for broader access — and say so before asking.
+
 FEATURES
 • Set, append and remove request and response headers
 • Profiles you can switch between, enable individually, or pause entirely
@@ -143,6 +191,7 @@ FEATURES
   or in a passphrase-encrypted vault (AES-GCM, PBKDF2 at 600,000 iterations)
 • A credential-bearing profile must name where it applies, so a token
   cannot be attached to every request your browser makes
+• Site access granted per domain, listed and revocable at any time
 • Dark mode, import and export
 
 VERIFIABLE BUILDS
@@ -200,7 +249,7 @@ Common rejections and what fixes them:
 
 | Reason | Fix |
 | --- | --- |
-| Permissions not justified | Restate the `<all_urls>` argument in the listing itself, not only in the repo |
+| Broad host permissions flagged | Should no longer apply — nothing is requested at install. If it is raised anyway, answer that host access is optional and user-initiated, and that `activeTab` cannot work for a declarativeNetRequest extension (verified: host access is needed when the request is made; `activeTab` grants it on a gesture that happens after the navigation and is revoked by the next one) |
 | Screenshots do not show functionality | Capture the profile editor with realistic rules |
 | Single purpose unclear | Keep the description on header modification; do not lead with the security architecture |
 

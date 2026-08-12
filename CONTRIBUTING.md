@@ -46,6 +46,18 @@ fetches it and passes it in.
 Coverage thresholds are set per directory, not globally, so UI churn cannot
 quietly lower the bar on the compiler or the vault. `src/core` is held to 95%.
 
+### The granted-host build
+
+Host access is optional and requested from a user gesture, so a test cannot
+grant it and Chrome's consent bubble cannot be driven. `npm run test:e2e`
+therefore builds `dist/chrome-granted` as well, whose manifest declares
+localhost outright, and the tests that need a rule to actually apply use that.
+
+Everything up to the click -- no access at install, no effect without it, the
+grant control appearing, the request refusing without a gesture -- runs against
+the real build. If you add a test that needs headers to actually reach the
+network, use `withGrantedHost`.
+
 ### Rule fixtures
 
 `test/fixtures/rules/*.json` record the exact declarativeNetRequest rules the

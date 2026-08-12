@@ -295,6 +295,54 @@ In order of how often it turns out to be the cause:
    response-header editor, because this will be the most common support
    question the project ever gets.
 
+## Host permissions
+
+**Nothing is granted at install.** `host_permissions` is empty;
+`optional_host_permissions` is `*://*/*`, requested at runtime.
+
+`src/core/origins.ts` decides what a profile needs. The rule worth remembering:
+a compiled condition ANDs `requestDomains` with any URL term, so **once a
+profile names a domain, granting that domain is sufficient however the URL
+filters are written**. The reverse does not hold -- a profile scoped only by
+URL substring or regex can match any host, and nothing narrower than
+`*://*/*` can serve it. That is the honest boundary and it is surfaced in the
+UI rather than hidden.
+
+Three things that shaped this, all measured rather than assumed:
+
+- **Narrowed host permissions work.** A build holding one origin applies
+  headers there and nowhere else.
+- **`activeTab` does not.** A build with `activeTab` and no host permissions
+  applies nothing. `declarativeNetRequest` needs host access at the moment a
+  request is made; `activeTab` grants it on a user gesture, which happens after
+  the navigation whose headers were to be changed, and is revoked by the next
+  one. The Web Store review suggests it; it is sound advice for content scripts
+  and inapplicable here.
+- **`permissions.request` refuses outside a user gesture.** That is the
+  property that makes the model worth having, and it is also why Chrome's
+  consent bubble cannot be driven by a test.
+
+The compiler does **not** withhold rules for un-granted hosts. Chrome enforces
+that itself by declining to act on them, and reimplementing the check would
+mean maintaining a second copy of Chrome's rules that could disagree with the
+first. `permissionGaps` only *reports* the gap, so the answer to "why is
+nothing happening" is on screen.
+
+### Testing around the consent bubble
+
+The tests split. Everything up to the click -- no access at install, no effect
+without access, the grant control offered, the request refusing without a
+gesture -- runs against the real build. The tests that need a rule to actually
+apply run against `dist/chrome-granted`, produced by
+`scripts/make-granted-build.mjs`, whose manifest declares localhost outright.
+CI builds it explicitly, because the e2e job downloads `dist/` rather than
+rebuilding.
+
+One consequence worth knowing: `chrome.permissions.remove` only removes
+*optional* permissions, so revocation cannot be exercised from that fixture --
+its access is required, not optional. The revoke call is the one part of the
+site-access panel with no end-to-end coverage.
+
 ## Traps hit while building this
 
 Recorded so they are not hit twice.

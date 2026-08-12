@@ -19,21 +19,51 @@
  */
 
 import { chromium } from '@playwright/test';
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const extension = join(root, 'dist', 'chrome');
+const built = join(root, 'dist', 'chrome');
+const extension = join(root, 'dist', 'chrome-screenshots');
 const outDir = join(root, 'assets', 'store', 'screenshots');
 
 const WIDTH = 1280;
 const HEIGHT = 800;
 
-if (!existsSync(join(extension, 'manifest.json'))) {
+if (!existsSync(join(built, 'manifest.json'))) {
   console.error('\n✗ no build found at dist/chrome. Run `npm run build` first.\n');
   process.exit(1);
 }
+
+/* A copy with the demo hosts already granted.
+ *
+ * Host access is optional and requested from a user gesture, which a script
+ * cannot supply -- so a screenshot run against the real build shows "waiting
+ * on your permission" across every shot, and the extension looks broken to
+ * anyone browsing the listing. What a user who granted access sees is the
+ * working state, and that is what the listing should show.
+ *
+ * Only the manifest differs; every pixel of UI is the real thing, in a state
+ * a real user reaches by clicking Allow. The hosts match the demo profile
+ * below so the panel lists something that makes sense. */
+rmSync(extension, { recursive: true, force: true });
+cpSync(built, extension, { recursive: true });
+const demoManifest = join(extension, 'manifest.json');
+const manifest = JSON.parse(readFileSync(demoManifest, 'utf8'));
+manifest.host_permissions = ['*://*.api.example.com/*', '*://*.staging.example.com/*'];
+delete manifest.optional_host_permissions;
+writeFileSync(demoManifest, JSON.stringify(manifest));
+
 mkdirSync(outDir, { recursive: true });
 
 /* Cleared first. A leftover from an earlier run sits in the directory you
@@ -96,6 +126,13 @@ await app.getByRole('tab', { name: 'credentials' }).click();
 await app.waitForTimeout(400);
 await shoot(app, '3-credentials');
 
+/* Site access. The listing leads on asking for no sites at install and
+   granting per domain, so the screenshots should show where that lives
+   rather than only assert it in prose. */
+await app.getByRole('tab', { name: 'settings' }).click();
+await app.waitForTimeout(400);
+await shoot(app, '4-site-access');
+
 // ---- the popup, on a backdrop ---------------------------------------
 /* Captured at its real width and then placed on a 1280x800 field, because the
    popup is the surface most people will actually use and a 420px image would
@@ -119,9 +156,10 @@ await stage.setContent(`<!doctype html><meta charset="utf-8"><style>
   <figcaption>The toolbar popup — headers and scope, without leaving the page</figcaption>
 </figure>`);
 await stage.waitForTimeout(300);
-await shoot(stage, '4-popup');
+await shoot(stage, '5-popup');
 
 await context.close();
+rmSync(extension, { recursive: true, force: true });
 
 // ---- verify, rather than assume -------------------------------------
 console.log(`\n✓ wrote ${shots.length} screenshot(s) to assets/store/screenshots\n`);
