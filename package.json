@@ -29,7 +29,8 @@
     "guard:refs": "node scripts/guard-manifest-refs.mjs",
     "verify": "node scripts/verify-reproducible.mjs",
     "sbom": "cyclonedx-npm --output-format JSON --output-file build/headsmith-sbom.cdx.json --omit dev",
-    "echo": "node scripts/echo-server.mjs"
+    "echo": "node scripts/echo-server.mjs",
+    "screenshots": "node scripts/screenshots.mjs"
   },
   "dependencies": {
     "react": "^19.2.0",

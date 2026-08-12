@@ -38,12 +38,23 @@ All generated — run `npm run icons` and they land in `assets/`.
 | Store icon | 128 × 128 | `assets/store/store-icon-128.png` |
 | Small promo tile | 440 × 280 | `assets/store/promo-small-440x280.png` |
 | Marquee promo tile | 1400 × 560 | `assets/store/promo-marquee-1400x560.png` |
-| Screenshots | 1280 × 800 (or 640 × 400) | You supply these — at least one, up to five |
+| Screenshots | 1280 × 800 | `assets/store/screenshots/`, via `npm run screenshots` |
 
-Screenshots are the one thing not generated. Take them at exactly 1280 × 800:
-open the extension page, then DevTools → device toolbar → set 1280 × 800 →
-capture screenshot. Show the profile editor with real-looking rules; the most
-common rejection is screenshots that do not demonstrate the described
+```bash
+npm run build && npm run screenshots
+```
+
+**Do not capture these by hand through DevTools.** On a Retina display the
+panel captures at the device pixel ratio, so a 1280 × 800 viewport is written
+out as 2560 × 1600 and the store refuses it — with an error that does not
+mention the size. The script pins `deviceScaleFactor: 1`, checks every file it
+produced, and fails if any is the wrong size. It also clears the directory
+first, because the store rejects an entire submission for one stale
+wrong-sized image without telling you which one.
+
+The shots are scripted rather than posed, so they are reproducible and stay
+current with the UI. They use a realistic profile — the most common rejection
+for a developer tool is screenshots that do not demonstrate the described
 functionality.
 
 ## Release and upload
