@@ -19,11 +19,12 @@ That is not a promise about our conduct. It is the shape of the API — there is
 no code path that *could* log your traffic, because none of our code runs when
 a request is made.
 
-Compare the same feature built on blocking `webRequest`, which is how several
-header extensions work: that receives every request and every response header
-on every site it is permitted to touch, and has to be trusted not to act on
-them. Headsmith does not request that permission, and `webRequest` is on a
-hard-fail list in CI so it cannot be added quietly.
+The alternative way to build this is a blocking `webRequest` listener, which
+receives every request and every response header on every site it is permitted
+to touch and must be trusted not to act on them. OpenModHeader's Firefox build
+works that way — that is the one this project read, not a claim about the
+category. Headsmith does not request `webRequest`, and it is on a hard-fail
+list in CI so it cannot be added quietly.
 
 ## Verify the build yourself
 

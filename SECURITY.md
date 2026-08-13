@@ -17,11 +17,11 @@ path in Headsmith that could log your traffic, because no code of ours runs
 when a request is made.
 
 The contrast worth drawing is with the same feature built on blocking
-`webRequest`, which is how the Firefox builds of several header extensions
-work — including OpenModHeader, which this project takes its feature set from.
-A blocking `webRequest` listener receives every request and every response
-header on every site the extension is permitted to touch, and must be trusted
-not to do anything with them. Headsmith requests no such permission, and
+`webRequest`. Such a listener receives every request and every response header
+on every site the extension is permitted to touch, and must be trusted not to
+do anything with them. OpenModHeader's Firefox build is built that way, and is
+named here because its source was read for this project rather than as a claim
+about extensions in general. Headsmith requests no such permission, and
 `webRequest` is on the forbidden list in
 [`scripts/permissions-baseline.json`](scripts/permissions-baseline.json) so it
 cannot be added without the guard failing.

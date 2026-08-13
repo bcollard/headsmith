@@ -115,9 +115,11 @@ Three properties are genuinely unusual for a header extension. They are worth
 leading with, because they are the reason to pick this one and they are all
 checkable.
 
-**1. No host access at install.** Most extensions in this category request
-`<all_urls>` up front, so installing one shows *"Read and change all your data
-on all websites"* before it has done anything. Headsmith requests nothing.
+**1. No host access at install.** Headsmith requests no hosts at all when
+installed, so there is no *"Read and change all your data on all websites"*
+prompt — the usual first impression for an extension in this category, and the
+one both projects studied for this work give. (That comparison belongs here,
+not in the listing.)
 Access is asked for one domain at a time, when a profile names one, and the
 prompt says that domain. Site access is listed in the extension's own settings
 and can be withdrawn there.
@@ -135,17 +137,29 @@ developer account and nothing about where they came from. Every Headsmith
 release is byte-reproducible from source and carries a provenance attestation
 binding it to a commit. Anyone can rebuild and compare.
 
-### Say it about Headsmith, not about other extensions
+### One rule for the listing text
 
-The listing text below describes what Headsmith does and contrasts *approaches*
-— blocking `webRequest` versus declarative rules, install-time access versus
-per-domain — without naming another product.
+**No sentence in the listing may have another extension as its subject** —
+named or not.
 
-That is deliberate. Comparative claims about named competitors invite reviewer
-scrutiny and can fall foul of the Developer Program Policies, and the contrast
-does not need them: "this one asks for no sites at install" is a stronger, more
-checkable claim than "unlike X". Anyone comparing options will draw the
-conclusion themselves, and the factual version cannot be argued with.
+That is the whole test, and it is checkable, which "avoid disparaging
+competitors" is not. An earlier draft of the copy below passed the informal
+version and failed this one: *"Extensions that modify headers using blocking
+webRequest do see every request on every site they are permitted to touch"*
+names nobody and is still a claim about what other people's software does. A
+reviewer is entitled to read it as disparagement, and it is not a claim
+Headsmith can substantiate about products it has not audited.
+
+The same point survives intact when made about Headsmith and the API: *reading
+traffic would require the webRequest permission, and Headsmith does not request
+it.* That is checkable in the manifest, cannot be argued with, and leaves the
+comparison to the reader.
+
+Note the asymmetry with the repository. `SECURITY.md` and `NOTICE.md` do name
+other projects and describe specific things about them, because those claims
+were verified against their source and are attributed. A store listing is
+marketing copy read by a reviewer with policies to enforce; the standard is
+different and the safe side is obvious.
 
 ## Listing
 
@@ -164,13 +178,12 @@ profiles and scoped by domain, URL or regex.
 IT CANNOT SEE YOUR TRAFFIC
 
 Headsmith is built entirely on Chrome's declarativeNetRequest API. It hands
-the browser a list of rules and the browser applies them. The extension is
-never invoked for a request: it does not receive the URL, the headers, the
-body, or the response. This is not a policy — it is the shape of the API.
+the browser a list of rules and the browser applies them. Headsmith is never
+invoked for a request: it does not receive the URL, the headers, the body,
+or the response. This is not a policy — it is the shape of the API.
 
-Extensions that modify headers using blocking webRequest do see every
-request on every site they are permitted to touch. Headsmith does not ask
-for that permission.
+Reading traffic would require the webRequest permission. Headsmith does not
+request it, and a check in its build pipeline fails if that ever changes.
 
 IT ASKS FOR NO SITES WHEN YOU INSTALL IT
 
