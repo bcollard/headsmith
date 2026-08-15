@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Headsmith — HTTP header rules for Chrome that cannot read your traffic</title>
+<meta name="description" content="A Chrome extension for adding, rewriting and removing HTTP headers. Built on declarativeNetRequest, so it never sees a request. Asks for no sites at install. Every release is reproducible and carries a provenance attestation.">
+<link rel="canonical" href="https://bcollard.github.io/headsmith/">
+<link rel="icon" href="img/icon128.png" type="image/png">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="Headsmith — HTTP header rules for Chrome that cannot read your traffic">
+<meta property="og:description" content="Add, rewrite and remove HTTP headers. No host access at install, no traffic visibility by construction, and releases you can rebuild byte-for-byte.">
+<meta property="og:url" content="https://bcollard.github.io/headsmith/">
+<meta property="og:image" content="https://bcollard.github.io/headsmith/img/og.png">
+<meta name="twitter:card" content="summary_large_image">
+
+<!--
+  Structured data, so the page can surface for queries the Web Store listing
+  itself cannot carry.
+-->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Headsmith",
+  "applicationCategory": "DeveloperApplication",
+  "applicationSubCategory": "Chrome Extension",
+  "operatingSystem": "Chrome, Edge, Brave, Chromium",
+  "url": "https://bcollard.github.io/headsmith/",
+  "downloadUrl": "https://github.com/bcollard/headsmith/releases/latest",
+  "softwareVersion": "1.3.2",
+  "image": "https://bcollard.github.io/headsmith/img/og.png",
+  "screenshot": "https://bcollard.github.io/headsmith/img/headers.png",
+  "description": "A Chrome extension for adding, rewriting and removing HTTP request and response headers, organised into profiles and scoped by domain or URL. Built entirely on declarativeNetRequest, so the extension is never invoked for a request and cannot observe traffic.",
+  "license": "https://opensource.org/licenses/MIT",
+  "isAccessibleForFree": true,
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "author": { "@type": "Person", "name": "Baptiste Collard", "url": "https://github.com/bcollard" }
+}
+</script>
+
+<!--
+  Everything below is inline. No fonts, stylesheets, scripts or images are
+  fetched from anywhere else, which is the same promise the extension makes and
+  a strange one to break on its own website.
+-->
+<style>
+  :root {
+    --forge:   #b4470e;
+    --forge-d: #8a360b;
+    --ink:     #14161a;
+    --muted:   #5c5651;
+    --line:    #e4d9d1;
+    --bg:      #fff8f3;
+    --bg-alt:  #ffffff;
+    --code-bg: rgba(20, 22, 26, .06);
+    --good:    #0b6e3f;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --forge:   #e8863f;
+      --forge-d: #f2a869;
+      --ink:     #f2ede8;
+      --muted:   #a89f96;
+      --line:    #3a332b;
+      --bg:      #17140f;
+      --bg-alt:  #211d18;
+      --code-bg: rgba(242, 237, 232, .09);
+      --good:    #4ade80;
+    }
+  }
+
+  * { box-sizing: border-box }
+
+  body {
+    margin: 0;
+    font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 62rem; margin: 0 auto; padding: 0 1.25rem }
+
+  a { color: var(--forge); text-underline-offset: 2px }
+  a:hover { color: var(--forge-d) }
+
+  code, pre {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  code {
+    font-size: .875em;
+    background: var(--code-bg);
+    padding: .15em .4em;
+    border-radius: 4px;
+  }
+  pre {
+    background: var(--code-bg);
+    border-radius: 8px;
+    padding: 1rem 1.1rem;
+    overflow-x: auto;
+    font-size: .84rem;
+    line-height: 1.6;
+    border: 1px solid var(--line);
+  }
+  pre code { background: none; padding: 0; font-size: inherit }
+
+  /* ---- hero ---- */
+  .hero {
+    text-align: center;
+    padding: 4.5rem 0 3.5rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .hero img.mark { width: 76px; height: 76px; border-radius: 16px }
+  .hero h1 {
+    font-size: clamp(2.1rem, 5vw, 3rem);
+    margin: 1.1rem 0 .5rem;
+    letter-spacing: -.02em;
+  }
+  .tagline {
+    font-size: clamp(1.05rem, 2.2vw, 1.3rem);
+    color: var(--muted);
+    max-width: 34rem;
+    margin: 0 auto 2rem;
+  }
+  .cta { display: flex; gap: .75rem; justify-content: center; flex-wrap: wrap }
+  .btn {
+    display: inline-block;
+    padding: .7rem 1.35rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: .95rem;
+    text-decoration: none;
+    border: 1px solid var(--forge);
+  }
+  .btn-primary { background: var(--forge); color: #fff }
+  .btn-primary:hover { background: var(--forge-d); border-color: var(--forge-d); color: #fff }
+  .btn-ghost { color: var(--forge); background: transparent }
+  .note { font-size: .85rem; color: var(--muted); margin-top: 1rem }
+
+  /* ---- sections ---- */
+  section { padding: 3.25rem 0; border-bottom: 1px solid var(--line) }
+  section.alt { background: var(--bg-alt) }
+  h2 { font-size: 1.55rem; margin: 0 0 .5rem; letter-spacing: -.01em }
+  h3 { font-size: 1.05rem; margin: 1.75rem 0 .35rem }
+  .lede { color: var(--muted); margin: 0 0 1.75rem; max-width: 46rem }
+  p { max-width: 46rem }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 1.5rem 2rem;
+    margin-top: 1.5rem;
+  }
+  .grid h3 { margin-top: 0 }
+  .grid p { margin: 0; font-size: .93rem; color: var(--muted) }
+
+  figure { margin: 1.75rem 0 0 }
+  figure img {
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    display: block;
+  }
+  figcaption { font-size: .85rem; color: var(--muted); margin-top: .6rem }
+
+  .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 1.5rem }
+
+  ul.plain { list-style: none; padding: 0; max-width: 46rem }
+  ul.plain li { padding: .45rem 0 .45rem 1.6rem; position: relative }
+  ul.plain li::before {
+    content: "";
+    position: absolute; left: 0; top: 1.05em;
+    width: .5rem; height: .5rem; border-radius: 50%;
+    background: var(--forge);
+  }
+
+  dl.faq { max-width: 46rem }
+  dl.faq dt { font-weight: 600; margin-top: 1.5rem }
+  dl.faq dd { margin: .35rem 0 0; color: var(--muted) }
+
+  .callout {
+    border-left: 3px solid var(--forge);
+    background: var(--code-bg);
+    padding: .9rem 1.1rem;
+    border-radius: 0 6px 6px 0;
+    margin: 1.5rem 0;
+    max-width: 46rem;
+  }
+  .callout p { margin: 0 }
+  .callout p + p { margin-top: .6rem }
+
+  footer {
+    padding: 2.5rem 0 3.5rem;
+    font-size: .9rem;
+    color: var(--muted);
+    text-align: center;
+  }
+  footer a { color: var(--muted) }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <img class="mark" src="img/logo.svg" width="76" height="76" alt="">
+    <h1>Headsmith</h1>
+    <p class="tagline">
+      Add, rewrite and remove HTTP headers in Chrome — organised into profiles,
+      scoped to the sites you name.
+    </p>
+    <div class="cta">
+      <a class="btn btn-primary" href="https://github.com/bcollard/headsmith/releases/latest">Download the latest release</a>
+      <a class="btn btn-ghost" href="https://github.com/bcollard/headsmith">Source on GitHub</a>
+    </div>
+    <p class="note">Free and MIT licensed. Chrome Web Store listing pending review.</p>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <h2>It cannot read your traffic</h2>
+    <p class="lede">This is the point of the project, so it goes first.</p>
+
+    <p>
+      Headsmith is built entirely on Chrome's <code>declarativeNetRequest</code> API.
+      It hands the browser a list of rules and the browser applies them. Headsmith is
+      never invoked for a request: it does not receive the URL, the headers, the body,
+      or the response.
+    </p>
+    <p>
+      That is not a promise about our conduct — it is the shape of the API. There is no
+      code path that <em>could</em> log your browsing, because none of our code runs when
+      a request is made.
+    </p>
+    <p>
+      Reading traffic would require the <code>webRequest</code> permission. Headsmith
+      does not request it, and a check in the build pipeline fails if that ever changes.
+    </p>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <h2>It asks for no sites when you install it</h2>
+    <p class="lede">
+      No “read and change all your data on all websites” prompt, because at install it
+      has been granted nothing at all.
+    </p>
+
+    <p>
+      When a profile names a domain, Chrome asks about that domain and nothing else.
+      Every site you have allowed is listed inside the extension and can be withdrawn
+      there — granting is never one-way.
+    </p>
+
+    <div class="callout">
+      <p>
+        <strong>The honest limit.</strong> A profile scoped by URL text or a regular
+        expression instead of a domain can match any site, so those ask for broader
+        access — and say so before asking, with a nudge to name a domain instead.
+      </p>
+    </div>
+
+    <figure>
+      <img src="img/site-access.png" alt="The Site access panel listing two allowed domains, each with a Remove button, plus Allow all sites and Revoke all site access controls." loading="lazy">
+      <figcaption>Site access: what is granted, and how to take it back.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>What it does</h2>
+
+    <div class="grid">
+      <div>
+        <h3>Request and response headers</h3>
+        <p>Set, append or remove either, with Chrome's own constraints surfaced as you type rather than at apply time.</p>
+      </div>
+      <div>
+        <h3>Profiles</h3>
+        <p>Group rules, switch between them, enable them individually, or pause everything with a keyboard shortcut.</p>
+      </div>
+      <div>
+        <h3>Precise scoping</h3>
+        <p>By domain, URL substring, regular expression and request type, with per-profile exclusions and a global never-modify list.</p>
+      </div>
+      <div>
+        <h3>Credentials kept apart</h3>
+        <p>Values that look like credentials never live in a profile. Session-only by default, or an AES-GCM vault behind a passphrase.</p>
+      </div>
+      <div>
+        <h3>Fails closed</h3>
+        <p>If a credential cannot be resolved, the operation is dropped rather than sent empty — an <code>Authorization</code> header with nothing after it is worse than none.</p>
+      </div>
+      <div>
+        <h3>No network access</h3>
+        <p>No analytics, no telemetry, no remote fonts or scripts. A CI check scans the built extension and fails on any network primitive.</p>
+      </div>
+    </div>
+
+    <div class="shots">
+      <figure>
+        <img src="img/headers.png" alt="The header editor showing an X-Environment header set to staging and an Authorization header whose value is masked." loading="lazy">
+        <figcaption>Headers, with credentials stored outside the profile.</figcaption>
+      </figure>
+      <figure>
+        <img src="img/scope.png" alt="The scope editor showing domain, URL-contains and regex fields, with a note on how many rules the profile costs." loading="lazy">
+        <figcaption>Scope, with the cost of each choice shown.</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <h2>You can check the build yourself</h2>
+    <p class="lede">
+      The Web Store signs the package itself, from a key the developer never holds — so a
+      store signature says the bytes came from a developer account, and nothing about
+      where they came from.
+    </p>
+
+    <p>Every Headsmith release closes that gap. The build is reproducible, so you can rebuild it and compare:</p>
+
+<pre><code>git clone https://github.com/bcollard/headsmith.git &amp;&amp; cd headsmith
+git checkout v1.3.2
+nvm use            # the Node version affects the output
+npm ci
+node scripts/verify-reproducible.mjs ~/Downloads/headsmith-1.3.2.zip</code></pre>
+
+    <p>And each release carries a provenance attestation binding those exact bytes to a commit:</p>
+
+<pre><code>gh attestation verify headsmith-1.3.2.zip --repo bcollard/headsmith</code></pre>
+
+    <p>
+      The shipped bundle is deliberately <strong>not minified</strong>. Publishing with
+      provenance is worth little if the thing being attested is an unreadable chunk.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Questions worth answering up front</h2>
+
+    <dl class="faq">
+      <dt>I set a response header and DevTools does not show it.</dt>
+      <dd>
+        It is almost certainly working. The Network panel reports response headers as they
+        arrived from the server, before extensions modify them. To see the real value, open
+        the console on the page and run
+        <code>(await fetch(location.href)).headers.get('Your-Header')</code> — that request
+        is same-origin, so every header is visible to it.
+      </dd>
+
+      <dt>Do I need a wildcard for subdomains?</dt>
+      <dd>
+        No. A domain already covers everything beneath it, so <code>example.com</code>
+        matches <code>api.example.com</code> too. Chrome accepts spellings like
+        <code>*.example.com</code> and then silently matches nothing; the editor flags those
+        and offers to correct them.
+      </dd>
+
+      <dt>Why not use <code>activeTab</code> instead of host permissions?</dt>
+      <dd>
+        It cannot work for this kind of extension. Header rules need host access at the
+        moment a request is made, and <code>activeTab</code> grants it on a click — which
+        happens after the page has already loaded, and is revoked by the next navigation.
+      </dd>
+
+      <dt>Can it merge cookies, or edit one CSP directive?</dt>
+      <dd>
+        No, and it says so rather than shipping something that half works.
+        <code>declarativeNetRequest</code> cannot read an existing header value, so a true
+        merge is not possible — only replacing a whole value.
+      </dd>
+
+      <dt>Where do my credentials go?</dt>
+      <dd>
+        Never into a profile. In session mode they live in memory Chrome clears when it
+        closes; in vault mode they are AES-GCM encrypted under a key derived from your
+        passphrase, held only while unlocked. There is no plaintext-on-disk option.
+      </dd>
+    </dl>
+
+    <figure>
+      <img src="img/popup.png" alt="The toolbar popup showing a profile name, request headers and scope fields in a narrow layout." loading="lazy">
+      <figcaption>The toolbar popup: headers and scope without leaving the page.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <h2>Install</h2>
+    <p class="lede">Not yet on the Chrome Web Store — the listing is in review. Until then, from source:</p>
+
+<pre><code>git clone https://github.com/bcollard/headsmith.git &amp;&amp; cd headsmith
+npm ci
+npm run build</code></pre>
+
+    <ul class="plain">
+      <li>Open <code>chrome://extensions</code></li>
+      <li>Turn on <strong>Developer mode</strong>, top right</li>
+      <li><strong>Load unpacked</strong>, and select <code>dist/chrome</code></li>
+    </ul>
+
+    <p>
+      To check it is doing something, run <code>npm run echo</code> for a local server that
+      shows the headers it actually received, then scope a profile to
+      <code>localhost</code>.
+    </p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>
+      <a href="https://github.com/bcollard/headsmith">Source</a> ·
+      <a href="https://github.com/bcollard/headsmith/blob/main/SECURITY.md">Security</a> ·
+      <a href="https://github.com/bcollard/headsmith/issues">Issues</a> ·
+      <a href="privacy.html">Privacy</a>
+    </p>
+    <p>MIT licensed. Built by <a href="https://github.com/bcollard">Baptiste Collard</a>.</p>
+  </div>
+</footer>
+
+</body>
+</html>

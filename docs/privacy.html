@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy — Headsmith</title>
+<meta name="description" content="Headsmith collects nothing, transmits nothing, and makes no network requests. What it stores, where, and how to remove it.">
+<link rel="canonical" href="https://bcollard.github.io/headsmith/privacy.html">
+<link rel="icon" href="img/icon128.png" type="image/png">
+<style>
+  :root {
+    --forge: #b4470e; --forge-d: #8a360b; --ink: #14161a; --muted: #5c5651;
+    --line: #e4d9d1; --bg: #fff8f3; --code-bg: rgba(20,22,26,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --forge: #e8863f; --forge-d: #f2a869; --ink: #f2ede8; --muted: #a89f96;
+      --line: #3a332b; --bg: #17140f; --code-bg: rgba(242,237,232,.09);
+    }
+  }
+  * { box-sizing: border-box }
+  body {
+    margin: 0; padding: 3rem 1.25rem 4rem;
+    font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, sans-serif;
+    color: var(--ink); background: var(--bg);
+  }
+  main { max-width: 44rem; margin: 0 auto }
+  a { color: var(--forge) } a:hover { color: var(--forge-d) }
+  h1 { font-size: 1.9rem; letter-spacing: -.02em; margin: 0 0 .35rem }
+  h2 { font-size: 1.15rem; margin: 2.25rem 0 .5rem }
+  .updated { color: var(--muted); font-size: .9rem; margin: 0 0 2rem }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .875em;
+         background: var(--code-bg); padding: .15em .4em; border-radius: 4px }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .93rem }
+  th, td { text-align: left; padding: .55rem .6rem; border-bottom: 1px solid var(--line); vertical-align: top }
+  th { font-weight: 600 }
+  .back { display: inline-block; margin-top: 2.5rem; font-size: .9rem }
+</style>
+</head>
+<body>
+<main>
+  <h1>Privacy</h1>
+  <p class="updated">Headsmith · last updated 15 August 2026</p>
+
+  <p>
+    <strong>Headsmith collects nothing and transmits nothing.</strong> It contains no
+    analytics, no telemetry, no error reporting, and no network code of any kind. There
+    is no server to send anything to, because there is no request the extension can make.
+  </p>
+
+  <p>
+    That is enforced rather than asserted: a check in the build pipeline scans the
+    packaged extension for network primitives — <code>fetch</code>,
+    <code>XMLHttpRequest</code>, <code>WebSocket</code>, <code>sendBeacon</code>,
+    <code>EventSource</code>, native messaging — and for any reference to an external
+    host in any file it ships. A release cannot be published if one appears.
+  </p>
+
+  <h2>It cannot see your browsing</h2>
+  <p>
+    Headsmith is built on Chrome's <code>declarativeNetRequest</code> API. Rules are
+    handed to the browser, which applies them itself; the extension is never invoked for
+    a request and receives no URL, header, body or response. It does not request the
+    <code>webRequest</code> permission, which is what an extension would need in order to
+    observe traffic.
+  </p>
+
+  <h2>What is stored, and where</h2>
+  <table>
+    <tr><th>What</th><th>Where</th><th>Leaves your machine?</th></tr>
+    <tr>
+      <td>Profiles, header rules, scoping, settings</td>
+      <td><code>chrome.storage.local</code>, on your computer</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>Header values recognised as credentials</td>
+      <td><code>chrome.storage.session</code> (cleared when Chrome closes), or AES-GCM encrypted in <code>chrome.storage.local</code> if you set a vault passphrase</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>Vault key</td>
+      <td>Derived from your passphrase and held in <code>chrome.storage.session</code> only, dropped on lock</td>
+      <td>No</td>
+    </tr>
+  </table>
+
+  <p>
+    Chrome's cross-device sync is <strong>not</strong> used. There is no
+    <code>chrome.storage.sync</code> code path at all, so nothing is uploaded to a Google
+    account.
+  </p>
+
+  <h2>Site access</h2>
+  <p>
+    Headsmith requests no site access when installed. Access is requested for a specific
+    domain when a profile names one, and only after you click to allow it. Everything
+    granted is listed in the extension's Settings and can be withdrawn there, or from
+    Chrome's own extension settings.
+  </p>
+  <p>
+    That access allows Headsmith's rules to <em>modify</em> headers on those sites. It
+    does not allow the extension to read anything, which
+    <code>declarativeNetRequest</code> does not permit in any case.
+  </p>
+
+  <h2>Removing your data</h2>
+  <p>
+    Uninstalling the extension removes everything it stored. There is no account, nothing
+    held elsewhere, and nothing to request deletion of. You can also clear individual
+    credentials, profiles or site permissions from within the extension at any time.
+  </p>
+
+  <h2>Children</h2>
+  <p>
+    Headsmith is a developer tool that collects no data from anyone, of any age.
+  </p>
+
+  <h2>Changes</h2>
+  <p>
+    If this ever changes, it will change in the
+    <a href="https://github.com/bcollard/headsmith">public repository</a> first, in a
+    commit, alongside the code that changed. Permission changes additionally require an
+    entry in <a href="https://github.com/bcollard/headsmith/blob/main/SECURITY.md">SECURITY.md</a>
+    and cannot be merged without one.
+  </p>
+
+  <h2>Contact</h2>
+  <p>
+    Open an issue at
+    <a href="https://github.com/bcollard/headsmith/issues">github.com/bcollard/headsmith/issues</a>,
+    or report a vulnerability privately through the repository's Security tab.
+  </p>
+
+  <a class="back" href="./">← Back to Headsmith</a>
+</main>
+</body>
+</html>
