@@ -227,6 +227,12 @@ Open source, MIT licensed.
 | --- | --- |
 | Single purpose | Modifying HTTP request and response headers |
 | Data collection | None |
+| Privacy policy URL | `https://bcollard.github.io/headsmith/privacy.html` |
+| Homepage URL | `https://bcollard.github.io/headsmith/` |
+
+Reviewers sometimes ask for a privacy policy even when nothing is collected, so
+one exists at the URL above rather than being written under time pressure after
+a rejection.
 
 Justifications, which the reviewer will ask for:
 

@@ -111,6 +111,18 @@ something subtle, say what would have gone wrong without it. Comments follow
 the same rule: they earn their place by explaining a decision, a constraint, or
 a trap, never by narrating the line below them.
 
+## The project site
+
+`docs/` is served at <https://bcollard.github.io/headsmith/> from `main`. Two
+self-contained pages: no fonts, stylesheets, scripts or images come from
+anywhere else, which is the same promise the extension makes and an odd one to
+break on its own website. If you change the site, load it and confirm it still
+makes no off-origin requests.
+
+Screenshots there are copies from `assets/store/screenshots/`, so
+`npm run screenshots` regenerates the source of truth and the copies in
+`docs/img/` need refreshing alongside a UI change.
+
 ## Releasing
 
 ```bash
