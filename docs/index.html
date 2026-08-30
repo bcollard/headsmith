@@ -4,14 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>Headsmith — HTTP header rules for Chrome that cannot read your traffic</title>
-<meta name="description" content="A Chrome extension for adding, rewriting and removing HTTP headers. Built on declarativeNetRequest, so it never sees a request. Asks for no sites at install. Every release is reproducible and carries a provenance attestation.">
+<title>Headsmith – HTTP Header Editor for Chrome that cannot read your traffic</title>
+<meta name="description" content="An HTTP header editor for Chrome. Add, modify and remove request and response headers, grouped into profiles and scoped to the sites you choose.">
 <link rel="canonical" href="https://bcollard.github.io/headsmith/">
 <link rel="icon" href="img/icon128.png" type="image/png">
 
 <meta property="og:type" content="website">
-<meta property="og:title" content="Headsmith — HTTP header rules for Chrome that cannot read your traffic">
-<meta property="og:description" content="Add, rewrite and remove HTTP headers. No host access at install, no traffic visibility by construction, and releases you can rebuild byte-for-byte.">
+<meta property="og:title" content="Headsmith – HTTP Header Editor for Chrome that cannot read your traffic">
+<meta property="og:description" content="Add, modify and remove HTTP request and response headers in Chrome. No site access at install, no traffic visibility by construction, and releases you can rebuild byte-for-byte.">
 <meta property="og:url" content="https://bcollard.github.io/headsmith/">
 <meta property="og:image" content="https://bcollard.github.io/headsmith/img/og.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -24,20 +24,86 @@
 {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
-  "name": "Headsmith",
+  "name": "Headsmith – HTTP Header Editor",
   "applicationCategory": "DeveloperApplication",
   "applicationSubCategory": "Chrome Extension",
   "operatingSystem": "Chrome, Edge, Brave, Chromium",
   "url": "https://bcollard.github.io/headsmith/",
   "downloadUrl": "https://github.com/bcollard/headsmith/releases/latest",
-  "softwareVersion": "1.3.2",
+  "softwareVersion": "1.4.0",
   "image": "https://bcollard.github.io/headsmith/img/og.png",
   "screenshot": "https://bcollard.github.io/headsmith/img/headers.png",
   "description": "A Chrome extension for adding, rewriting and removing HTTP request and response headers, organised into profiles and scoped by domain or URL. Built entirely on declarativeNetRequest, so the extension is never invoked for a request and cannot observe traffic.",
   "license": "https://opensource.org/licenses/MIT",
+  "codeRepository": "https://github.com/bcollard/headsmith",
+  "featureList": [
+    "Add, modify and remove HTTP request and response headers",
+    "Group header rules into profiles and switch between them",
+    "Scope rules by domain, URL substring, regular expression and request type",
+    "Requests no host access at install; sites are granted one at a time",
+    "Credentials stored outside profiles, session-only or in an AES-GCM vault",
+    "Reproducible builds with GitHub provenance attestation"
+  ],
   "isAccessibleForFree": true,
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
   "author": { "@type": "Person", "name": "Baptiste Collard", "url": "https://github.com/bcollard" }
+}
+</script>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "I set a response header and DevTools does not show it. Is it working?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Almost certainly yes. Chrome's DevTools Network panel reports response headers as they arrived from the server, before extensions modify them, so a header that is being applied correctly is still absent from that list. To see the real value, open the console on the page itself and run (await fetch(location.href)).headers.get('Your-Header') — that request is same-origin, so every response header is visible to it. A cross-origin fetch will return null whether or not the header arrived, because CORS does not expose non-safelisted headers to scripts."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Do I need a wildcard to match subdomains?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. A domain already covers everything beneath it, so a rule scoped to example.com also matches api.example.com and a.b.example.com. Chrome accepts spellings such as *.example.com, https://example.com and example.com:8080 without complaint and then matches nothing at all, so Headsmith flags those in the editor and offers to correct them."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Why does it use host permissions rather than activeTab?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "activeTab cannot work for a declarativeNetRequest extension. Header rules need host access at the moment a request is made, and activeTab grants access on a user gesture — which happens after the page has already loaded, and is revoked by the next navigation. This was verified by loading a build with activeTab and no host permissions: no headers were applied at all."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can it merge cookies or edit a single CSP directive?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. Chrome's declarativeNetRequest cannot read an existing header value, so a true merge is impossible; only replacing a whole value is. Headsmith says so rather than shipping something that half works."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Where are my credentials stored?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Never inside a profile. In session mode they live in memory that Chrome clears when it closes. In vault mode they are encrypted with AES-GCM under a key derived from your passphrase with PBKDF2, held only while the vault is unlocked and dropped on lock. There is no option that writes a credential to disk unencrypted."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I check that the extension I installed matches the source?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Every release is reproducible and carries a GitHub provenance attestation. Download the release, run gh attestation verify to confirm it came from this repository and commit, then rebuild from the same tag and compare the bytes. The shipped bundle is deliberately not minified so it can also simply be read."
+      }
+    }
+  ]
 }
 </script>
 
@@ -210,8 +276,8 @@
     <img class="mark" src="img/logo.svg" width="76" height="76" alt="">
     <h1>Headsmith</h1>
     <p class="tagline">
-      Add, rewrite and remove HTTP headers in Chrome — organised into profiles,
-      scoped to the sites you name.
+      An HTTP header editor for Chrome. Add, modify and remove request and response
+      headers, grouped into profiles and scoped to the sites you name.
     </p>
     <div class="cta">
       <a class="btn btn-primary" href="https://github.com/bcollard/headsmith/releases/latest">Download the latest release</a>
@@ -319,7 +385,7 @@
 
 <section class="alt">
   <div class="wrap">
-    <h2>You can check the build yourself</h2>
+    <h2 id="verify">You can check the build yourself</h2>
     <p class="lede">
       The Web Store signs the package itself, from a key the developer never holds — so a
       store signature says the bytes came from a developer account, and nothing about
@@ -386,6 +452,14 @@ node scripts/verify-reproducible.mjs ~/Downloads/headsmith-1.3.2.zip</code></pre
         Never into a profile. In session mode they live in memory Chrome clears when it
         closes; in vault mode they are AES-GCM encrypted under a key derived from your
         passphrase, held only while unlocked. There is no plaintext-on-disk option.
+      </dd>
+
+      <dt>How do I check that what I installed matches the source?</dt>
+      <dd>
+        Download the release, run <code>gh attestation verify</code> to confirm it came
+        from this repository and commit, then rebuild from the same tag and compare the
+        bytes — the commands are <a href="#verify">above</a>. The shipped bundle is not
+        minified, so it can also simply be read.
       </dd>
     </dl>
 

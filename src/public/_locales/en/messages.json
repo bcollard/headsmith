@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "Headsmith – HTTP Header Editor",
+    "description": "Extension name, shown in the toolbar and as the Web Store listing title. Max 75 characters. The strongest keyword signal the store has, so it carries what the extension is as well as what it is called."
+  },
+  "extDescription": {
+    "message": "Add, modify and remove request and response headers, grouped into profiles and scoped to the sites you choose.",
+    "description": "Store summary. Max 132 characters, plain text, no HTML or newlines."
+  },
+  "cmdTogglePause": {
+    "message": "Turn Headsmith on or off",
+    "description": "Label for the keyboard shortcut, shown at chrome://extensions/shortcuts."
+  }
+}

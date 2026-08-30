@@ -194,7 +194,7 @@ listener watched every key, each apply would trigger another apply. It watches
 
 ## The invariant guards
 
-Four scripts in `scripts/`. They run against **`dist/`, not `src/`** — the bug
+Five scripts in `scripts/`. They run against **`dist/`, not `src/`** — the bug
 they were modelled on is a `fonts.googleapis.com` stylesheet in a shipped
 extension, which lives in one entrypoint HTML file and is invisible to a source
 scan. A guard reading source would have missed the one real privacy bug in the
@@ -214,6 +214,14 @@ The guards are zero-dependency plain ESM on purpose: a guard that trusts
 `node_modules` to verify `node_modules` is not a guard. The JS tokenizer in
 `guard-egress.mjs` is hand-rolled for the same reason and has its own tests —
 its whole job is telling a `fetch(` in a comment from one in code.
+
+`guard-locales.mjs` is the odd one out: it guards a *listing* rather than the
+code. It exists because the failure it catches is silent and expensive — a
+manifest placeholder with no message ships as the literal text `__MSG_extName__`
+as the extension's name, and the store's name and summary limits (75 and 132
+characters) are enforced at submission, which is days after the mistake was
+made. It also rejects a summary containing markup or a newline, since that field
+is plain text and the dashboard does not say so.
 
 ## Reproducible builds
 

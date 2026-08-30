@@ -34,10 +34,21 @@ export default defineConfig({
     },
   }),
   manifest: {
-    name: 'Headsmith',
+    /* Name and description come from _locales so the Web Store listing title
+       and summary are translatable without a code change.
+     *
+     * The name is the strongest keyword signal the store has, and "Headsmith"
+     * alone is a word nobody searches for. It now carries what the extension
+     * *is* as well as what it is called -- once, without repeating the terms
+     * in the summary, since a term repeated across name, summary and
+     * description is keyword spam and grounds for suspension rather than
+     * merely rejection. */
+    name: '__MSG_extName__',
+    /* Plain, deliberately. short_name is a fallback identity rather than
+       listing copy and gains nothing from translation. */
     short_name: 'Headsmith',
-    description:
-      'Add, rewrite and remove HTTP request and response headers. Organise rules into profiles and scope them by URL.',
+    description: '__MSG_extDescription__',
+    default_locale: 'en',
     // declarativeNetRequest with modifyHeaders landed well before this, but
     // storage.session (which is where the vault key lives, and the reason
     // credentials never touch disk) requires 102, and setBadgeTextColor 110.
@@ -88,7 +99,7 @@ export default defineConfig({
     commands: {
       'toggle-pause': {
         suggested_key: { default: 'Alt+Shift+H' },
-        description: 'Turn Headsmith on or off',
+        description: '__MSG_cmdTogglePause__',
       },
     },
   },

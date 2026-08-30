@@ -1,7 +1,7 @@
 <div align="center">
   <img src="assets/logo.svg" width="96" height="96" alt="">
   <h1>Headsmith</h1>
-  <p><strong>Add, rewrite and remove HTTP headers in Chrome — organised into profiles, scoped by URL.</strong></p>
+  <p><strong>An HTTP header editor for Chrome. Add, modify and remove request and response headers, grouped into profiles and scoped to the sites you choose.</strong></p>
   <p><a href="https://bcollard.github.io/headsmith/">bcollard.github.io/headsmith</a></p>
 </div>
 

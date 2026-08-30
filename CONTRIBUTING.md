@@ -73,7 +73,7 @@ regenerated fixture cannot enshrine a regression on its own.
 
 ## The invariant guards
 
-Four scripts under `scripts/` fail CI on things no ordinary test would catch.
+Five scripts under `scripts/` fail CI on things no ordinary test would catch.
 They run against `dist/`, not `src/`, because the bug they were modelled on —
 a remote font stylesheet in a shipped extension — is invisible in a source tree.
 
@@ -83,6 +83,7 @@ a remote font stylesheet in a shipped extension — is invisible in a source tre
 | `guard-manifest.mjs` | the permission set drifts from its reviewed baseline |
 | `guard-manifest-refs.mjs` | the manifest names a file that is not in the build |
 | `guard-core-purity.mjs` | `src/core` reaches a browser API |
+| `guard-locales.mjs` | a `__MSG_` placeholder resolves to nothing, locales disagree on keys, or the store name or summary breaks its length or format limit |
 
 Run them with `npm run guard` after a build.
 
@@ -91,6 +92,23 @@ If a guard blocks you, the answer is almost never to widen its allowlist.
 requires a written reason, because an exception in that guard *is* the guard.
 When Vite's modulepreload polyfill put a `fetch()` in the bundle, the fix was
 to switch the polyfill off, not to excuse it.
+
+## Adding a language
+
+The manifest name and description are `__MSG_` placeholders resolved from
+`src/public/_locales/<locale>/messages.json`. Copy the `en` directory, translate
+the values, and keep the key set identical — `guard-locales.mjs` fails on a
+locale that has drifted, because a missing key ships as a literal
+`__MSG_extName__` in the store listing.
+
+The store's *detailed* description is not in the package. It lives in
+`store-listing/<locale>.md` and is pasted into the dashboard by hand, one
+language at a time, and only after the package declaring that locale has been
+uploaded — the language selector is populated from the uploaded package.
+
+Only `en` exists today. The interface is English, and a translated listing in
+front of an untranslated interface is a documented rejection reason, so a locale
+lands when the UI is translated with it.
 
 ## Changing permissions
 

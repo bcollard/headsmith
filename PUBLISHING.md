@@ -107,7 +107,8 @@ manifest and reports validation errors before you go further.
 - [ ] `gh attestation verify` passes on that exact file
 - [ ] Screenshots regenerated if the UI changed (`npm run screenshots`)
 - [ ] `SECURITY.md` changelog updated if permissions moved
-- [ ] The listing text below still matches what the extension does
+- [ ] `store-listing/en.md` still matches what the extension does
+- [ ] `npm run guard` green — it checks the name, summary and locale parity
 
 ## What actually distinguishes this, and how to say it
 
@@ -143,8 +144,8 @@ binding it to a commit. Anyone can rebuild and compare.
 named or not.
 
 That is the whole test, and it is checkable, which "avoid disparaging
-competitors" is not. An earlier draft of the copy below passed the informal
-version and failed this one: *"Extensions that modify headers using blocking
+competitors" is not. An earlier draft of `store-listing/en.md` passed
+the informal version and failed this one: *"Extensions that modify headers using blocking
 webRequest do see every request on every site they are permitted to touch"*
 names nobody and is still a claim about what other people's software does. A
 reviewer is entitled to read it as disparagement, and it is not a claim
@@ -163,63 +164,43 @@ different and the safe side is obvious.
 
 ## Listing
 
-| Field | Value |
-| --- | --- |
-| Name | Headsmith |
-| Category | Developer Tools |
-| Short description | Add, rewrite and remove HTTP headers. Profiles, URL scoping, encrypted credentials, no traffic access. |
+The copy lives in the repo rather than only in a web form with no history:
 
-Suggested detailed description:
+| Field | Source | How it gets there |
+| --- | --- | --- |
+| Name | `src/public/_locales/<locale>/messages.json` → `extName` | From the uploaded package. Read-only in the dashboard. |
+| Summary | same file → `extDescription` | From the package. Read-only. |
+| Detailed description | `store-listing/<locale>.md` | Pasted by hand, once per language |
+| Screenshots | `assets/store/screenshots/` | Uploaded per language; the same files are fine |
+| Category | Developer Tools | Global, set once |
 
-```
-Headsmith modifies HTTP request and response headers — organised into
-profiles and scoped by domain, URL or regex.
+Current name is **Headsmith – HTTP Header Editor** (30 of 75 characters). It
+carries the search term because the store ranks on listing metadata and an
+extension nobody has installed yet has nothing else to rank on. `npm run guard`
+fails if the name or summary exceeds its limit, if the summary stops being plain
+text, or if a `__MSG_` placeholder in the manifest has no matching message.
 
-IT CANNOT SEE YOUR TRAFFIC
+The copy rules those files follow — no superlatives, no term repeated across
+name, summary and description, no sentence with another extension as its
+subject, and opening with what it does rather than how it is built — are written
+down in `store-listing/README.md`. They are there because breaking them is how
+listings get rejected, not as style preference.
 
-Headsmith is built entirely on Chrome's declarativeNetRequest API. It hands
-the browser a list of rules and the browser applies them. Headsmith is never
-invoked for a request: it does not receive the URL, the headers, the body,
-or the response. This is not a policy — it is the shape of the API.
+**Upload the package before editing any listing text.** The dashboard's language
+selector only offers languages the *uploaded package* declares under
+`_locales/`. Editing first means the tabs are not there to edit.
 
-Reading traffic would require the webRequest permission. Headsmith does not
-request it, and a check in its build pipeline fails if that ever changes.
+### Adding a language
 
-IT ASKS FOR NO SITES WHEN YOU INSTALL IT
+1. `cp -r src/public/_locales/en src/public/_locales/<locale>` and translate the
+   messages. Keys must match `en` exactly — the guard enforces it.
+2. Translate `store-listing/en.md` to `store-listing/<locale>.md`.
+3. Build, release, upload the package, *then* pick the language in the dashboard
+   and paste the description.
 
-There is no "read and change all your data on all websites" prompt, because
-at install Headsmith is granted nothing at all. When a profile names a
-domain, Chrome asks about that domain and nothing else. Every site you have
-allowed is listed in the extension's settings and can be withdrawn there.
-
-Profiles scoped by URL text or a regular expression can match any site, so
-those ask for broader access — and say so before asking.
-
-FEATURES
-• Set, append and remove request and response headers
-• Profiles you can switch between, enable individually, or pause entirely
-• Scope by domain, URL substring, URL regex and resource type
-• Per-profile domain exclusions and a global never-modify list
-• Credentials stored separately from profiles — session-only by default,
-  or in a passphrase-encrypted vault (AES-GCM, PBKDF2 at 600,000 iterations)
-• A credential-bearing profile must name where it applies, so a token
-  cannot be attached to every request your browser makes
-• Site access granted per domain, listed and revocable at any time
-• Dark mode, import and export
-
-VERIFIABLE BUILDS
-The build is reproducible and every release carries a GitHub provenance
-attestation. You can rebuild from source and confirm byte-for-byte that
-the published extension matches. The bundle is not minified, so the
-shipped code can be read. Instructions are in the README.
-
-NO DATA COLLECTION
-No analytics. No telemetry. No network requests of any kind — this is
-enforced by a CI check that scans the built extension and fails the build
-if any network primitive or remote resource appears in it.
-
-Open source, MIT licensed.
-```
+Only `en` ships today. A translated listing in front of an English interface is
+the "metadata inconsistent across locales" rejection, so a locale is added when
+the UI is translated too, not before.
 
 ### Privacy tab
 
