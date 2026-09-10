@@ -375,3 +375,19 @@ Recorded so they are not hit twice.
 - **`"modulepreload"` appears only inside string literals** in Vite's polyfill,
   so a guard matching it against comment-and-string-stripped code never fires.
   Match on identifiers that survive stripping.
+- **A Dependabot group can bundle packages whose peers conflict with each
+  other**, and Dependabot does not pre-resolve this — it opens the PR and lets
+  CI's `npm install` fail with `ERESOLVE`. Hit twice in one week: `@vitejs/
+  plugin-react@6` needs `vite@8`, but `vitest@3` caps `vite` at `<8`, so the
+  two had to bump together even though only one was in the group. Separately,
+  `vitest@4` requires `@vitest/coverage-v8@4` (exact peer match) and that
+  package lives outside every grouping rule, so it silently rots. When a
+  Dependabot PR fails CI with ERESOLVE, the fix is to find the actual peer
+  conflict (`npm view <pkg>@<version> peerDependencies`) and bump the missing
+  linked package alongside it in a manual PR — never `--legacy-peer-deps`,
+  which papers over a real incompatibility rather than resolving it.
+- **`typescript` is pinned below 7 on purpose.** TypeScript 7 (the Go port)
+  exists on npm, but `typescript-eslint@8.69.0`'s peer range still caps at
+  `<6.1.0` — installing TS 7 breaks linting. Re-check
+  `npm view typescript-eslint@latest peerDependencies` before accepting any
+  Dependabot PR that touches `typescript`.
