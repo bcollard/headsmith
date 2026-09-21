@@ -42,6 +42,19 @@ updates:
           - typescript-eslint
           - eslint
           - '@eslint/*'
+    # TypeScript 7 (the Go port) installs cleanly and then breaks linting:
+    # typescript-eslint still caps its peer at `>=4.8.4 <6.1.0`. Because
+    # typescript sits in the build-toolchain group, proposing it does not
+    # produce one rejectable PR -- it makes the whole group unmergeable, so
+    # the useful bumps in it get held hostage by a bump that cannot land.
+    # The bound mirrors that peer range rather than the major, since 6.0.x
+    # is still within it and would be fine to take.
+    # Remove this once `npm view typescript-eslint@latest peerDependencies`
+    # admits 6.1 or later.
+    ignore:
+      - dependency-name: typescript
+        versions:
+          - '>=6.1.0'
     labels:
       - dependencies
     commit-message:

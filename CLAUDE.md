@@ -379,15 +379,35 @@ Recorded so they are not hit twice.
   other**, and Dependabot does not pre-resolve this — it opens the PR and lets
   CI's `npm install` fail with `ERESOLVE`. Hit twice in one week: `@vitejs/
   plugin-react@6` needs `vite@8`, but `vitest@3` caps `vite` at `<8`, so the
-  two had to bump together even though only one was in the group. Separately,
-  `vitest@4` requires `@vitest/coverage-v8@4` (exact peer match) and that
-  package lives outside every grouping rule, so it silently rots. When a
+  two had to bump together even though only one was in the group. When a
   Dependabot PR fails CI with ERESOLVE, the fix is to find the actual peer
   conflict (`npm view <pkg>@<version> peerDependencies`) and bump the missing
   linked package alongside it in a manual PR — never `--legacy-peer-deps`,
   which papers over a real incompatibility rather than resolving it.
+- **Sharing a group does not make two packages move together.** `vitest` and
+  `@vitest/coverage-v8` are locked to each other by an *exact* peer —
+  `@vitest/coverage-v8@5` requires `vitest@5.0.1`, not a range — and both
+  match `build-toolchain`, `vitest` by name and the other by `@vitest/*`. They
+  arrived as two pull requests a week apart, each ERESOLVE-ing against the half
+  the other carried, although both versions were published on the same day.
+  An earlier version of this note blamed that on the package sitting outside
+  every grouping rule. That was wrong — it is in the group — so reading
+  `dependabot.yml` is not enough to rule this out. Treat an exact peer as
+  something grouping cannot be trusted to hold together.
+- **A stale dependency branch can revert a merged sibling with CI green.**
+  When several of these land in one sitting, a branch rebased against an
+  intermediate `main` carries whatever its own base predated. #24 was cut
+  before vitest 5 landed, and the tip Dependabot left after rebasing still
+  pinned `vitest` and `@vitest/coverage-v8` at `^4.1.11` — so merging a pull
+  request titled "11 minor and patch updates" would have silently undone the
+  vitest 5 bump. All eight checks passed on that tip, and they were right to:
+  a coherent downgrade is not a build failure. Nothing in CI can catch this.
+  Before merging a dependency PR that was opened before another one landed,
+  `git diff origin/main <branch> -- package.json` and confirm every line moves
+  forward. Rebuilding the branch on current `main` is safer than asking for
+  another rebase when merges and rebases are racing each other.
 - **`typescript` is pinned below 7 on purpose.** TypeScript 7 (the Go port)
-  exists on npm, but `typescript-eslint@8.69.0`'s peer range still caps at
-  `<6.1.0` — installing TS 7 breaks linting. Re-check
+  exists on npm, but `typescript-eslint@8.70.0`'s peer range still caps at
+  `>=4.8.4 <6.1.0` — installing TS 7 breaks linting. Re-check
   `npm view typescript-eslint@latest peerDependencies` before accepting any
   Dependabot PR that touches `typescript`.
