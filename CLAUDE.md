@@ -194,7 +194,7 @@ listener watched every key, each apply would trigger another apply. It watches
 
 ## The invariant guards
 
-Five scripts in `scripts/`. They run against **`dist/`, not `src/`** — the bug
+Six scripts in `scripts/`. They run against **`dist/`, not `src/`** — the bug
 they were modelled on is a `fonts.googleapis.com` stylesheet in a shipped
 extension, which lives in one entrypoint HTML file and is invisible to a source
 scan. A guard reading source would have missed the one real privacy bug in the
@@ -223,10 +223,41 @@ characters) are enforced at submission, which is days after the mistake was
 made. It also rejects a summary containing markup or a newline, since that field
 is plain text and the dashboard does not say so.
 
+`guard-build-paths.mjs` guards the reproducibility claim rather than the code:
+nothing in `dist/` may contain an absolute filesystem path. It checks both this
+checkout's root — the common case, and the one a developer can act on straight
+away — and generic `/home/<user>/`, `/Users/<user>/`, `C:\Users\` prefixes,
+which catch a path baked in somewhere else and which matching on the root alone
+would miss entirely. It was written after Vite 8 shipped `/home/runner/...`
+inside v1.4.1; see **Reproducible builds**. It is also a small privacy fix,
+since those artifacts published the builder's directory layout to everyone who
+installed the extension.
+
 ## Reproducible builds
 
-The build is a pure function of the source. Verified across a fresh clone in a
-different directory, not just twice in the same one.
+The build is a pure function of the source. That was stated here as "verified
+across a fresh clone in a different directory, not just twice in the same one"
+— and the cross-directory half was never automated, which cost a release.
+
+**Vite 8 broke it and nothing noticed.** Vite 8 bundles Rolldown, which
+annotates unminified chunks with `//#region <module id>` markers, and WXT
+builds entrypoint ids as `virtual:wxt-<name>-entrypoint?<inputPath>` with an
+absolute `inputPath`. Every chunk therefore carried the path of the checkout
+it was built in. v1.4.0 (Vite 7, no markers) reproduced; the first Vite 8
+build did not, differing from a local rebuild by exactly those bytes.
+
+`verify-reproducible.mjs --self` could not catch it — it builds twice in the
+same directory, so the embedded path is identical both times and the artifacts
+match. The check that does catch it is `guard-build-paths.mjs`, which asserts
+the property directly rather than by comparing two builds that share a
+directory. The fix itself is a `renderChunk` hook in `wxt.config.ts` that
+rewrites the root to a fixed token; Rolldown's `comments: false` also removes
+the markers but takes every legal and JSDoc comment with it, which defeats
+`minify: false`.
+
+The general lesson, worth more than the specific bug: **a self-comparison
+cannot detect a variable both sides share.** Where a property must hold
+absolutely, assert it absolutely.
 
 Three things had to be removed: timestamps (fixed DOS epoch, not mtime), entry
 order (sorted, not readdir), and metadata (no extra fields, no external

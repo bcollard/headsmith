@@ -140,7 +140,17 @@ if (!first.equals(second)) {
   console.error('');
   process.exit(1);
 }
+/* Deliberately not phrased as "reproducible". Both runs happen in this
+   directory, so anything the build derives from its own absolute path is
+   identical in each and cancels out -- which is exactly how a Vite 8 upgrade
+   baked `/home/runner/work/...` into every chunk and still passed this check
+   on the way to publishing v1.4.1. What catches that is guard-build-paths.mjs,
+   which asserts the absence of absolute paths instead of comparing two builds
+   that share one. */
 console.log('\n✓ the build is stable across runs');
+if (selfOnly) {
+  console.log('  (same directory both times; `npm run guard:paths` covers path-dependent output)');
+}
 
 if (selfOnly) {
   console.log('');
