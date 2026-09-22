@@ -204,7 +204,7 @@ that affects credential handling or rule integrity.
 Any change to the permission set, the credential model or the invariant guards
 is recorded here. CI requires an entry in this section for permission changes.
 
-- **1.4.1** — New invariant guard: `guard-build-paths.mjs` fails the build if
+- **1.4.2** — New invariant guard: `guard-build-paths.mjs` fails the build if
   anything in `dist/` contains an absolute filesystem path. Vite 8 had been
   embedding the build directory into every chunk, which broke the
   reproducible-build claim — the artifact depended on *where* it was built, so
@@ -212,6 +212,12 @@ is recorded here. CI requires an entry in this section for permission changes.
   anyone else — and shipped the builder's directory layout to everyone who
   installed the extension. Recorded here because it changes the guard set; the
   permission set and the credential model are untouched.
+
+  **1.4.1 was withdrawn** for that defect and replaced by this release. Its
+  GitHub release and artifacts were deleted; the tag remains, because
+  `refs/tags/v*` is protected against deletion and rewriting, and that
+  protection is what makes an attestation naming a tag worth anything. The tag
+  therefore still points at the withdrawn commit, which is the honest record.
 - **1.3.0** — Site access made visible and revocable from Settings, with a
   deliberate switch for granting every site. No change to what is requested or
   held; this only makes the existing state inspectable and reversible from
