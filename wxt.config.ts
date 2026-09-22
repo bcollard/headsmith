@@ -1,5 +1,36 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'wxt';
 import react from '@vitejs/plugin-react';
+
+/* Rolldown -- which is what Vite 8 bundles with -- annotates unminified chunks
+   with `//#region <module id>` markers. WXT builds its entrypoint ids as
+   `virtual:wxt-<name>-entrypoint?<inputPath>` with an *absolute* inputPath, so
+   the marker carries the path of the checkout: `/home/runner/work/...` on CI,
+   somebody's home directory everywhere else.
+
+   That makes the artifact a function of where it was built, which silently
+   broke the property the release notes ask people to check. v1.4.0 (Vite 7,
+   no markers) reproduced; the first Vite 8 build did not, differing only in
+   those bytes. Nothing caught it because `--self` builds twice in the same
+   directory, where the path is identical both times.
+
+   Rewriting the root to a fixed token as the chunk is rendered is the
+   narrowest fix available. Rolldown's `comments: false` also removes the
+   markers, but takes every legal and JSDoc comment with it -- and readable
+   output is the whole reason `minify: false` is set. WXT offers no way to
+   make the id relative. */
+const projectRoot = fileURLToPath(new URL('.', import.meta.url)).replace(/\/$/, '');
+
+function normalizeBuildPaths() {
+  return {
+    name: 'headsmith:normalize-build-paths',
+    renderChunk(code: string) {
+      // split/join rather than a regex: the root is a literal, and escaping it
+      // for RegExp is a way to get this subtly wrong on a path with a dot in it.
+      return code.split(projectRoot).join('/headsmith');
+    },
+  };
+}
 
 /* Chrome only. There is deliberately no `-b firefox` target: the Firefox
    build of an extension like this needs blocking `webRequest`, which can
@@ -16,7 +47,7 @@ export default defineConfig({
   // toolbar icon. Stated explicitly because the default is root-relative.
   publicDir: 'src/public',
   vite: () => ({
-    plugins: [react()],
+    plugins: [react(), normalizeBuildPaths()],
     build: {
       // Readable output is a security feature here: the whole point of
       // publishing with provenance is that a reviewer can diff the artifact
