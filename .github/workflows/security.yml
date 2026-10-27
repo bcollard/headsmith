@@ -63,14 +63,8 @@ jobs:
       # Installed from PyPI at a pinned version rather than via an action, so
       # there is one fewer third-party action in the supply chain and the
       # version is visible in this file.
-      # Python 3.12: the runner's default pipx interpreter moved to 3.14, where
-      # semgrep's bundled mcp import fails against its pydantic.
-      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
-        with:
-          python-version: '3.12'
-
       - name: Install Semgrep
-        run: pipx install --python python3.12 semgrep==1.145.0
+        run: pipx install semgrep==1.182.1
 
       - name: Scan
         # --enable-nosem is explicit rather than assumed: `semgrep ci` honours
