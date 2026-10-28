@@ -64,7 +64,7 @@ jobs:
       # there is one fewer third-party action in the supply chain and the
       # version is visible in this file.
       - name: Install Semgrep
-        run: pipx install semgrep==1.145.0
+        run: pipx install semgrep==1.182.1
 
       - name: Scan
         # --enable-nosem is explicit rather than assumed: `semgrep ci` honours
