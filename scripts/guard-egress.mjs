@@ -152,8 +152,12 @@ for (const file of files) {
       failures.push(`${name}: <link rel="${m[1]}"> to ${href}`);
     }
 
-    /* Inline <script> gets the same primitive scan as a .js file. */
-    const scriptRe = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
+    /* Inline <script> gets the same primitive scan as a .js file. The end
+       tag is matched the way the HTML parser matches it: `</script >` and
+       `</script foo>` close the element too, and an unclosed script runs to
+       end of file. A literal `</script>` alone would let either form slip a
+       script body past the scan. */
+    const scriptRe = /<script\b[^>]*>([\s\S]*?)(?:<\/script\b[^>]*>|$)/gi;
     while ((m = scriptRe.exec(source)) !== null) {
       const { code } = scanJs(m[1]);
       for (const { re, name: primitive } of NETWORK_PRIMITIVES) {
